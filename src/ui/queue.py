@@ -83,10 +83,9 @@ def cancel_edit_mode_action():
     )
     return final_updates
 
-def handle_queue_action_on_select(*args, evt: gr.SelectData):
+def handle_queue_action_on_select(*args, **kwargs):
     # The full list of UI components is passed in *args, but we don't need them here.
-    # We only need the event data.
-    num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
+    evt = kwargs.get("evt")
     if evt.index is None:
         return [gr.update()] * num_outputs
 
@@ -185,7 +184,9 @@ def save_queue_to_zip():
             for task in queue:
                 params_copy = task['params'].copy()
                 input_image_np = params_copy.pop('input_image', None)
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
+                # When saving, all tasks, including the one currently processing,
+                # should be marked as 'pending' so they are ready to be run when the queue is loaded.
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": "pending"}
                 if input_image_np is not None:
                     img_filename = f"task_{task['id']}_input.png"
                     manifest_entry['image_ref'] = img_filename

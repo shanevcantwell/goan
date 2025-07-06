@@ -7,9 +7,12 @@ from PIL import Image
 import base64
 import io
 import logging
+import json
+import zipfile
 import html
 
 from .queue_manager import queue_manager_instance
+from . import shared_state as shared_state_module
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,51 @@ def np_to_base64_uri(np_array_or_tuple, format="png"):
         logger.error(f"Error converting NumPy to base64: {e}", exc_info=True)
         return None
 
+def reconstruct_queue_from_zip(zip_filepath: str) -> tuple[list, int]:
+    """
+    Reconstructs a queue from a saved zip file by reading the manifest
+    and reloading associated images.
+
+    Args:
+        zip_filepath: The path to the .zip file.
+
+    Returns:
+        A tuple containing the reconstructed queue (list of task dicts)
+        and the next task ID to use.
+    """
+    new_queue = []
+    max_id = 0
+    try:
+        with zipfile.ZipFile(zip_filepath, 'r') as zf:
+            if shared_state_module.QUEUE_STATE_JSON_IN_ZIP not in zf.namelist():
+                logger.error(f"Manifest '{shared_state_module.QUEUE_STATE_JSON_IN_ZIP}' not found in zip.")
+                return [], 1
+
+            with zf.open(shared_state_module.QUEUE_STATE_JSON_IN_ZIP) as manifest_file:
+                queue_manifest = json.load(manifest_file)
+
+            for task_manifest in queue_manifest:
+                task_id = task_manifest.get('id', 0)
+                if task_id > max_id:
+                    max_id = task_id
+
+                params = task_manifest.get('params', {})
+                image_ref = task_manifest.get('image_ref')
+
+                if image_ref and image_ref in zf.namelist():
+                    with zf.open(image_ref) as img_file:
+                        img_bytes = img_file.read()
+                        pil_image = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+                        params['input_image'] = np.array(pil_image)
+                
+                new_queue.append({"id": task_id, "params": params, "status": "pending"})
+        
+        return new_queue, max_id + 1
+    except Exception as e:
+        logger.error(f"Failed to reconstruct queue from zip '{zip_filepath}': {e}", exc_info=True)
+        gr.Warning(f"Error loading queue: {e}")
+        return [], 1
+
 def update_queue_df_display():
     """Formats the current queue state into a Gradio DataFrame update object for display."""
     queue_state = queue_manager_instance.get_state()
@@ -60,6 +108,7 @@ def update_queue_df_display():
         status = task.get("status", "pending")
 
         is_processing_current_task = processing and i == 0
+        is_editing_current_task = editing_task_id == task_id
         is_pending = status == 'pending'
 
         up_enabled = is_pending and i > 0 and not is_processing_current_task
@@ -73,8 +122,8 @@ def update_queue_df_display():
         pause_button = _button_markdown('⏸️', pause_enabled)
         edit_button = _button_markdown('✎', edit_enabled)
         cancel_button = _button_markdown('✖️', cancel_enabled)
-
-        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt']
+        
+        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt'] 
         
         # Using html.escape() is more robust for tooltips
         prompt_title = html.escape(params['prompt'], quote=True)
@@ -84,78 +133,6 @@ def update_queue_df_display():
         thumbnail_size = "50px"
         img_md = f'<img src="{img_uri}" alt="Input" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display:block; margin:auto; object-fit:contain;" />' if img_uri else ""
 
-        # Consolidated status display logic
-        is_editing_this_task = editing_task_id == task_id
-        
-        status_display = ""
-        if is_processing_current_task: status_display = "⏳ Processing"
-        elif is_editing_this_task: status_display = "✏️ Editing"
-        elif status == "done": status_display = "✅ Done"
-        elif status == "error": status_display = f"❌ Error: {task.get('error_message', 'Unknown')}"
-        elif status == "aborted": status_display = "⏹️ Aborted"
-        else: status_display = "⏸️ Pending"
-
-        data.append([
-            up_arrow, down_arrow, pause_button, edit_button, cancel_button,
-            status_display, prompt_cell, img_md, f"{params.get('video_length', 0):.1f}s", task_id
-        ])
-
-    return gr.update(value=data) if data else gr.update(value=[], headers=["↑", "↓", "⏸️", "✎", "✖", "Status", "Prompt", "Image", "Length", "ID"], datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"], col_count=(10, "dynamic"))
-
-    """Formats the current queue state into a Gradio DataFrame update object for display."""
-    queue_state = queue_manager_instance.get_state()
-    queue = queue_state.get("queue", [])
-    data = []
-    processing = queue_state.get("processing", False)
-    total_tasks = len(queue)
-
-    def _button_markdown(icon: str, enabled: bool) -> str:
-        """Generates markdown for an action button, styled as enabled or disabled."""
-        if enabled:
-            # The <a> tag makes it look clickable, triggering the .select() event.
-            return f"<a href='#' style='text-decoration: none; font-size: 1.2em;'>{icon}</a>"
-        else:
-            # A plain span with muted color indicates a disabled state.
-            return f"<span style='color: #999; font-size: 1.2em; cursor: not-allowed;'>{icon}</span>"
-
-    for i, task in enumerate(queue):
-        params = task['params']
-        task_id = task['id']
-        status = task.get("status", "pending")
-
-        # Determine the state of each action button for the current task.
-        is_processing_current_task = processing and i == 0
-        is_pending = status == 'pending'
-        is_editing_current_task = queue_state.get("editing_task_id") == task_id
-
-        # Define button enabled/disabled states based on task status and position.
-        up_enabled = is_pending and i > 0 and not is_processing_current_task
-        down_enabled = is_pending and i < (total_tasks - 1) and not is_processing_current_task
-        pause_enabled = is_processing_current_task
-        edit_enabled = is_pending and not is_processing_current_task
-        cancel_enabled = is_pending or is_processing_current_task
-
-        # Generate the markdown for each button.
-        up_arrow = _button_markdown('⬆️', up_enabled)
-        down_arrow = _button_markdown('⬇️', down_enabled)
-        pause_button = _button_markdown('⏸️', pause_enabled)
-        edit_button = _button_markdown('✎', edit_enabled)
-        cancel_button = _button_markdown('✖️', cancel_enabled)
-
-        # Create a truncated prompt for display and a full-text tooltip
-        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt'] 
-        
-        # Create an image thumbnail for the DataFrame
-        img_uri = np_to_base64_uri(params.get('input_image'), format="png")
-        thumbnail_size = "50px"
-        img_md = f'<img src="{img_uri}" alt="Input" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display:block; margin:auto; object-fit:contain;" />' if img_uri else ""
-
-        # Determine the display status based on the task's state
-        is_processing_current_task = processing and i == 0
-        is_editing_current_task = editing_task_id == task_id
-        task_status_val = task.get("status", "pending")
-
-        # Determine the display status based on the task's state
         if is_processing_current_task: status_display = "⏳ Processing"
         elif is_editing_current_task: status_display = "✏️ Editing"
         elif status == "done": status_display = "✅ Done"

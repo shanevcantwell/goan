@@ -164,7 +164,7 @@ def update_button_states(app_state, input_image_pil, queue_df_data):
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=False),                                                                                                             
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=False),
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=False),
-        }},
+        }},  
         {'condition': lambda s: s['is_editing'], 'get_updates': lambda s: {
             K.ADD_TASK_BUTTON: gr.update(interactive=not s['is_editing_processing_task'], variant="primary"),
             K.PROCESS_QUEUE_BUTTON: gr.update(interactive=False, value="▶️ Process Queue", variant="secondary"),
@@ -181,8 +181,9 @@ def update_button_states(app_state, input_image_pil, queue_df_data):
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=s['has_pending_tasks'], variant="stop" if s['has_pending_tasks'] else "secondary"),
             K.ADD_TASK_BUTTON: gr.update(interactive=s['has_image'], variant="primary" if s['has_image'] else "secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
-            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
+            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),            
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=False, variant="secondary"),
+            
         }},
         # Default rule for idle state.
         {'condition': lambda s: True, 'get_updates': lambda s: {
@@ -192,7 +193,7 @@ def update_button_states(app_state, input_image_pil, queue_df_data):
                 value="▶️ Process Queue",
                 variant="primary"
                 ),
-            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),
+            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),            
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'], variant="primary"),

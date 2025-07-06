@@ -415,7 +415,6 @@ def worker(
                 offload_model_from_device_for_memory_preservation(
                     transformer, target_device=gpu, preserved_memory_gb=8
                 )
-                load_model_as_complete(vae, target_device=gpu)
 
             # Let the UI know that the expensive VAE decoding is happening
             output_queue_ref.push(
@@ -450,9 +449,6 @@ def worker(
                     current_pixels, history_pixels, overlapped_frames
                 )
 
-            if not high_vram:
-                unload_complete_models()
-
             current_video_frame_count = history_pixels.shape[2]
 
             is_manual_preview_request = shared_state_module.shared_state_instance.preview_request_flag.is_set()
@@ -485,11 +481,14 @@ def worker(
         success = True
 
     except (InterruptedError, KeyboardInterrupt) as e:
-        logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
-        # Send the latent state for pause/resume
-        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause)))
+        # This is the hook for the pause functionality.
+        logger.info(f"Worker task {task_id} caught interrupt signal: {e}")
+        # Check if we are pausing (and have state to save) or just stopping.
+        if shared_state_module.shared_state_instance.pause_requested_flag.is_set() and history_latents_for_pause is not None:
+            output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_abort_preview_path)))
+        else:
+            output_queue_ref.push(('aborted', (task_id, None)))
         success = False
-        final_output_filename = graceful_pause_preview_path
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
         output_queue_ref.push(('error', (task_id, str(e))))

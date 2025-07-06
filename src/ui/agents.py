@@ -7,6 +7,7 @@ import numpy as np
 
 from core.generation_core import worker
 from diffusers_helper.thread_utils import AsyncStream, async_run
+from core import generation_utils
 from . import shared_state as shared_state_module
 from .lora import LoRAManager
 from .queue_manager import queue_manager_instance
@@ -65,6 +66,8 @@ class ProcessingAgent(threading.Thread):
                 self._handle_start(message)
             elif message.get("type") == "stop":
                 self._handle_stop()
+            elif message.get("type") == "pause":
+                self._handle_pause()
             elif message.get("type") == "preview":
                 self._handle_preview()
 
@@ -80,6 +83,7 @@ class ProcessingAgent(threading.Thread):
         self.is_processing = True
         queue_manager_instance.set_processing(True)
         ui_update_queue.put(("processing_started", None))
+        shared_state_module.shared_state_instance.pause_requested_flag.clear()
         shared_state_module.shared_state_instance.interrupt_flag.clear()
 
         # Run the actual processing in a separate thread to not block the agent's mailbox
@@ -90,8 +94,19 @@ class ProcessingAgent(threading.Thread):
         """Handles any stop request by setting the interrupt flag."""
         if not self.is_processing:
             return
+                # Ensure pause flag is clear if we are hard stopping.
+        shared_state_module.shared_state_instance.pause_requested_flag.clear()
+        ui_update_queue.put(("stopping_process", None))
         shared_state_module.shared_state_instance.interrupt_flag.set()
         logger.info("Stop signal sent to worker. Worker will stop and finalize the current task.")
+
+    def _handle_pause(self):
+        """Handles a request to pause the current task and save its state."""
+        if not self.is_processing:
+            return
+        logger.info("Pause request received by agent. Setting flags.")
+        shared_state_module.shared_state_instance.pause_requested_flag.set()
+        shared_state_module.shared_state_instance.interrupt_flag.set()
 
     def _handle_preview(self):
         """Handles a request to generate a preview for the current segment."""
@@ -142,10 +157,22 @@ class ProcessingAgent(threading.Thread):
                 error_message = "Worker exited unexpectedly."
 
                 while True:
-                    if shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                        break
+                    try:
+                        # Wait for 1 second. If nothing, check interrupt flag again.
+                        flag, data = output_stream.output_queue.next(timeout=1.0)
+                    except queue.Empty:
+                        # This is the timeout case. The worker hasn't sent anything.
+                        # Check if a stop was requested. If so, we assume the worker
+                        # has stopped or will stop shortly, and we can break out.
+                        if shared_state_module.shared_state_instance.interrupt_flag.is_set():
+                            logger.warning("Worker did not send 'aborted' message after stop request. Timing out.")
+                            task_final_status = "aborted"
+                            # We don't set an error message because this is an expected outcome of a forced stop.
+                            error_message = None
+                            break
+                        # If no stop was requested, just continue waiting.
+                        continue
 
-                    flag, data = output_stream.output_queue.next()
                     ui_update_queue.put((flag, data))
 
                     if flag == "end":
@@ -161,16 +188,42 @@ class ProcessingAgent(threading.Thread):
                         task_final_status = "aborted"
                         error_message = None
                         break
+                    elif flag == "paused_with_state":
+                        task_id, history_latents, preview_path = data
+                        task_final_status = "paused"
+                        error_message = None
+                        final_output_path = preview_path # The preview generated before pausing
+
+                        # Call the utility to save the .goan_resume file
+                        # Note: This requires access to more parameters. This is a conceptual placement.
+                        # You would need to fetch the task's creative params to pass here.
+                        # resume_path = generation_utils.save_resume_state(...)
+                        # ui_update_queue.put(("paused", (task_id, resume_path)))
+
+                        # For now, we'll just log it.
+                        logger.info(f"Task {task_id} paused with latent state. Saving resume file would happen here.")
+                        break
+
                     elif flag == "file":
                         _, new_video_path, _ = data
                         final_output_path = new_video_path
 
+                # If the task was aborted by the user, we want to reset its status to 'pending'
+                # in the backend queue so it can be run again.
+                final_status_for_queue = task_final_status
+                if task_final_status == "aborted":
+                    final_status_for_queue = "pending"
+                    # Ensure no error message is associated with a user-initiated stop.
+                    error_message = None
+
                 queue_manager_instance.complete_task(
                     task_id=task["id"],
-                    status=task_final_status,
+                    status=final_status_for_queue,
                     final_path=final_output_path,
                     error_msg=error_message
                 )
+                # The UI listener, however, still needs to know the original 'aborted' status
+                # to perform the correct UI cleanup (e.g., clearing progress bars).
                 ui_update_queue.put(("task_finished", {"id": task["id"], "status": task_final_status}))
 
                 if shared_state_module.shared_state_instance.interrupt_flag.is_set():

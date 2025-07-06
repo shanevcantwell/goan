@@ -60,7 +60,22 @@ def process_task_queue_and_listen(*lora_control_values):
                 task = data  # type: ignore
                 yield (gr.update(), queue_helpers.update_queue_df_display(), gr.update(), gr.update(), f"Processing Task {task['id']}...", gr.update(), gr.update(), gr.update(), gr.update())
             elif flag == "task_finished":
-                yield (gr.update(), queue_helpers.update_queue_df_display(), gr.update(), gr.update(), f"Task {data['id']} {data['status']}.", gr.update(), gr.update(), gr.update(), gr.update())
+                status = data['status']
+                final_message = f"Task {data['id']} {status}."
+                if status == 'aborted':
+                    final_message = f"Task {data['id']} stopped by user."
+                
+                yield (
+                    gr.update(), 
+                    queue_helpers.update_queue_df_display(), 
+                    gr.update(), 
+                    gr.update(), 
+                    final_message, # Progress description
+                    gr.update(value=None, visible=False), # Clear progress bar
+                    gr.update(), 
+                    gr.update(), 
+                    gr.update()
+                )
             elif flag == "info":
                 gr.Info(data)
             elif flag == "queue_finished":
@@ -79,10 +94,16 @@ def process_task_queue_and_listen(*lora_control_values):
     # The .then() call in the switchboard will handle the final button state update.
     # We just need to yield one last time to ensure the final queue state is displayed.
     logger.info("UI listener loop finished. Yielding final queue display.")
-    yield (  # Yield a final update to refresh the queue display.
+    yield (
         gr.update(),
         queue_helpers.update_queue_df_display(),
-        gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+        gr.update(), # LAST_FINISHED_VIDEO
+        gr.update(value=None, visible=False), # CURRENT_TASK_PREVIEW_IMAGE
+        gr.update(value=""), # CURRENT_TASK_PROGRESS_DESCRIPTION
+        gr.update(value=None, visible=False), # CURRENT_TASK_PROGRESS_BAR
+        gr.update(), # PROCESS_QUEUE_BUTTON
+        gr.update(), # CREATE_PREVIEW_BUTTON
+        gr.update()  # CLEAR_QUEUE_BUTTON
     )
 
 def request_preview_generation_action():

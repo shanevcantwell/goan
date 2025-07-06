@@ -38,7 +38,9 @@ def autosave_queue_on_exit_action():
             for task in queue:
                 params_copy = task['params'].copy()
                 input_image_np = params_copy.pop('input_image', None)
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
+                # When saving, all tasks, including any that might be processing,
+                # should be marked as 'pending' so they are ready to be run when the queue is loaded.
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": "pending"}
                 if input_image_np is not None:
                     img_filename = f"task_{task['id']}_input.png"
                     manifest_entry['image_ref'] = img_filename
