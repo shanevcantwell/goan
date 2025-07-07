@@ -133,8 +133,11 @@ def update_queue_df_display():
         thumbnail_size = "50px"
         img_md = f'<img src="{img_uri}" alt="Input" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display:block; margin:auto; object-fit:contain;" />' if img_uri else ""
 
-        if is_processing_current_task: status_display = "⏳ Processing"
-        elif is_editing_current_task: status_display = "✏️ Editing"
+        # The status of the task should be the primary source of truth.
+        # We check `i == 0` as a safeguard, because only the top task can be processing.
+        # This is more robust than relying on the global `processing` flag which can have timing issues.
+        if status == "processing" and i == 0: status_display = "⏳ Processing"
+        elif is_editing_current_task: status_display = "✏️ Editing" # This takes precedence if a task is somehow being edited.
         elif status == "done": status_display = "✅ Done"
         elif status == "error": status_display = f"❌ Error: {task.get('error_message', 'Unknown')}"
         elif status == "aborted": status_display = "⏹️ Aborted"

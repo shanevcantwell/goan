@@ -52,12 +52,16 @@ The application can be understood as three main layers:
 
 1.  **User Action**: While a task is running, the user clicks the "Stop Processing" button.
 2.  **Switchboard**: The `.click()` event again calls `process_task_queue_and_listen`.
-3.  **UI Listener**: This time, the function sees that `processing` is `True`. It sends a `{"type": "stop"}` message to the `ProcessingAgent`.
+3.  **UI Listener**: This time, the function sees that `processing` is `True`. It sets a `stop_requested_flag` for immediate UI feedback (disabling other buttons) and sends a `{"type": "stop"}` message to the `ProcessingAgent`.
 4.  **Agent**: The agent's `_handle_stop` method sets the global `shared_state_instance.interrupt_flag`.
 5.  **Worker**: The `worker` is designed to check `interrupt_flag.is_set()` frequently (between segments and within the sampling loop). When it detects the flag, it raises an `InterruptedError`.
 6.  **Graceful Exit**: The `worker`'s main `try...except` block catches the `InterruptedError`, pushes a final `('aborted', ...)` message to its output queue, and cleans up.
 7.  **Agent**: The agent's `_processing_loop` receives the `'aborted'` message. It calls `queue_manager_instance.complete_task()` to reset the task's status to `"pending"` (so it can be run again) and then pushes a `('task_finished', {"status": "aborted"})` message to the `ui_update_queue`.
 8.  **UI Update**: The UI listener receives the `task_finished` signal and updates the UI to show the task was stopped, clearing progress bars and resetting button states.
+ 
+### Flow 3: Requesting a Manual Preview (Event-Driven during Processing)
+
+1.  **User Action**: While a task is processing, the
 
 ---
 

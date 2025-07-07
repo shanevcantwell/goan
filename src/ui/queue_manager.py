@@ -51,12 +51,18 @@ class QueueManager:
 
     def update_task(self, task_id: int, params: dict, input_image: np.ndarray):
         with self.queue_lock:
-            for task in self.state["queue"]:
-                if task["id"] == task_id:
-                    task["params"] = {**params, 'input_image': input_image}
-                    task["status"] = "pending"
+            task_to_update = next((task for task in self.state["queue"] if task["id"] == task_id), None)
+
+            if task_to_update:
+                # Prevent updating a task that is no longer in a mutable state (e.g., processing).
+                if task_to_update.get("status", "pending") != "pending":
+                    gr.Warning(f"Cannot update task {task_id} because it is currently {task_to_update.get('status')}. Exiting edit mode.")
+                else:
+                    task_to_update["params"] = {**params, 'input_image': input_image}
+                    task_to_update["status"] = "pending"
                     gr.Info(f"Task {task_id} updated.")
-                    break
+            
+            # Always exit edit mode after an attempt to update.
             self.state["editing_task_id"] = None
 
     def remove_task(self, task_index: int):
@@ -106,11 +112,20 @@ class QueueManager:
 
     def complete_task(self, task_id: int, status: str, final_path: str | None = None, error_msg: str | None = None):
         with self.queue_lock:
-            if self.state["queue"] and self.state["queue"][0]["id"] == task_id:
-                task = self.state["queue"][0]
-                task["status"] = status
-                if final_path: task["final_output_filename"] = final_path
-                if error_msg: task["error_message"] = error_msg
+            # The task being completed should always be at the top of the queue.
+            if not self.state["queue"] or self.state["queue"][0]["id"] != task_id:
+                return
+
+            task = self.state["queue"][0]
+            task["status"] = status
+            if final_path:
+                task["final_output_filename"] = final_path
+            if error_msg:
+                task["error_message"] = error_msg
+
+            # Only remove the task if it's truly finished (done or error).
+            # If it was aborted/paused, it remains in the queue with its new status.
+            if status in ["done", "error"]:
                 self.state["queue"].pop(0)
 
     def load_queue(self, new_queue: list, next_id: int):

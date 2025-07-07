@@ -83,7 +83,7 @@ class ProcessingAgent(threading.Thread):
         self.is_processing = True
         queue_manager_instance.set_processing(True)
         ui_update_queue.put(("processing_started", None))
-        shared_state_module.shared_state_instance.pause_requested_flag.clear()
+        shared_state_module.shared_state_instance.pause_request_flag.clear()
         shared_state_module.shared_state_instance.interrupt_flag.clear()
 
         # Run the actual processing in a separate thread to not block the agent's mailbox
@@ -95,7 +95,7 @@ class ProcessingAgent(threading.Thread):
         if not self.is_processing:
             return
                 # Ensure pause flag is clear if we are hard stopping.
-        shared_state_module.shared_state_instance.pause_requested_flag.clear()
+        shared_state_module.shared_state_instance.pause_request_flag.clear()
         ui_update_queue.put(("stopping_process", None))
         shared_state_module.shared_state_instance.interrupt_flag.set()
         logger.info("Stop signal sent to worker. Worker will stop and finalize the current task.")
@@ -105,7 +105,7 @@ class ProcessingAgent(threading.Thread):
         if not self.is_processing:
             return
         logger.info("Pause request received by agent. Setting flags.")
-        shared_state_module.shared_state_instance.pause_requested_flag.set()
+        shared_state_module.shared_state_instance.pause_request_flag.set()
         shared_state_module.shared_state_instance.interrupt_flag.set()
 
     def _handle_preview(self):
@@ -157,22 +157,10 @@ class ProcessingAgent(threading.Thread):
                 error_message = "Worker exited unexpectedly."
 
                 while True:
-                    try:
-                        # Wait for 1 second. If nothing, check interrupt flag again.
-                        flag, data = output_stream.output_queue.next(timeout=1.0)
-                    except queue.Empty:
-                        # This is the timeout case. The worker hasn't sent anything.
-                        # Check if a stop was requested. If so, we assume the worker
-                        # has stopped or will stop shortly, and we can break out.
-                        if shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                            logger.warning("Worker did not send 'aborted' message after stop request. Timing out.")
-                            task_final_status = "aborted"
-                            # We don't set an error message because this is an expected outcome of a forced stop.
-                            error_message = None
-                            break
-                        # If no stop was requested, just continue waiting.
-                        continue
-
+                    # This is a blocking call. The agent will wait here until the worker
+                    # sends a message. The `FIFOQueue` object from the helper library
+                    # uses .next() and does not support timeouts.
+                    flag, data = output_stream.output_queue.next()
                     ui_update_queue.put((flag, data))
 
                     if flag == "end":
@@ -236,5 +224,4 @@ class ProcessingAgent(threading.Thread):
             self.is_processing = False
             queue_manager_instance.set_processing(False)
             shared_state_module.shared_state_instance.interrupt_flag.clear()
-            shared_state_module.shared_state_instance.stop_requested_flag.clear()
             ui_update_queue.put(("queue_finished", None))

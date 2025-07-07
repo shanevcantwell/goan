@@ -157,8 +157,10 @@ def worker(
             )
         )
         if not high_vram:
+            # Both text encoders are now managed by DynamicSwap, so we just need to
+            # prepare their device attribute for the diffusers library functions.
             fake_diffusers_current_device(text_encoder, gpu)
-            load_model_as_complete(text_encoder_2, target_device=gpu)
+            fake_diffusers_current_device(text_encoder_2, gpu)
         llama_vec, clip_l_pooler = encode_prompt_conds(
             prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
         )
@@ -191,8 +193,6 @@ def worker(
                 ),
             )
         )
-        if not high_vram:
-            load_model_as_complete(vae, target_device=gpu)
         start_latent = vae_encode(input_image_pt, vae)
         output_queue_ref.push(
             (
@@ -205,8 +205,6 @@ def worker(
                 ),
             )
         )
-        if not high_vram:
-            load_model_as_complete(image_encoder, target_device=gpu)
         image_encoder_output = hf_clip_vision_encode(
             input_image_np, feature_extractor, image_encoder
         )
@@ -263,6 +261,22 @@ def worker(
             latent_padding_size = latent_padding * latent_window_size
             # Added for consistent 1-indexed segment number for loop segments
             current_loop_segment_number = latent_padding_iteration + 1
+
+            # --- Preview Scheduling Logic ---
+            # Determine if a preview is automatically scheduled for this segment based on user settings.
+            is_preview_scheduled_for_segment = (
+                latent_padding_iteration == 0  # Always for the first segment
+                or is_last_section  # Always for the last segment
+                or (
+                    parsed_segments_to_decode_set
+                    and current_loop_segment_number in parsed_segments_to_decode_set
+                )  # If specified in the CSV list
+                or (
+                    preview_frequency > 0 and (current_loop_segment_number % preview_frequency == 0)
+                )  # If it matches the periodic frequency
+            )
+            output_queue_ref.push(('segment_info', {'is_preview_scheduled': is_preview_scheduled_for_segment}))
+
             logger.info(f"Task {task_id}: Seg {current_loop_segment_number}/{total_latent_sections} (lp_val={latent_padding}), last_loop_seg={is_last_section}")
 
             indices = torch.arange(
@@ -484,7 +498,7 @@ def worker(
         # This is the hook for the pause functionality.
         logger.info(f"Worker task {task_id} caught interrupt signal: {e}")
         # Check if we are pausing (and have state to save) or just stopping.
-        if shared_state_module.shared_state_instance.pause_requested_flag.is_set() and history_latents_for_pause is not None:
+        if shared_state_module.shared_state_instance.pause_request_flag.is_set() and history_latents_for_pause is not None:
             output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_abort_preview_path)))
         else:
             output_queue_ref.push(('aborted', (task_id, None)))

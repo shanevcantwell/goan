@@ -60,13 +60,12 @@ def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
     else:
         queue_manager_instance.add_task(base_params_for_worker_dict, img_np_data)
         # After adding, just update the queue display and let other components be.
-        # The switchboard expects a specific number of outputs.
+        # The switchboard expects a specific number of outputs, so we provide gr.update() placeholders.
         num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
         updates = [gr.update()] * num_outputs
-        # Index 0 is APP_STATE, Index 1 is QUEUE_DF
-        updates[1] = queue_helpers.update_queue_df_display()
+        updates[1] = queue_helpers.update_queue_df_display() # Index 1 is the queue dataframe
         return updates
-
+    
 def cancel_edit_mode_action():
     """Resets the UI to its default state and exits edit mode."""
     queue_manager_instance.set_editing_task(None)
@@ -79,14 +78,17 @@ def cancel_edit_mode_action():
     final_updates = (
         [gr.update(), queue_helpers.update_queue_df_display(), gr.update(value=None, visible=False), gr.update(visible=True, value=None)] +
         ui_updates +
-        [gr.update(interactive=False), gr.update(interactive=False), gr.update(value="Add Task to Queue", variant="secondary"), gr.update(visible=False)]
+        [gr.update(), gr.update(), gr.update(value="Add Task to Queue", variant="secondary"), gr.update(visible=False)]
     )
     return final_updates
 
 def handle_queue_action_on_select(*args, **kwargs):
     # The full list of UI components is passed in *args, but we don't need them here.
+    # The number of outputs must match the switchboard's `select_q_outputs` list.
+    num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
     evt = kwargs.get("evt")
-    if evt.index is None:
+    # Guard against missing event data, which can happen on UI refresh/desync.
+    if not evt or evt.index is None:
         return [gr.update()] * num_outputs
 
     row_index, col_index = evt.index
@@ -128,12 +130,15 @@ def handle_queue_action_on_select(*args, **kwargs):
         if is_processing:
             gr.Info(f"Stopping and removing currently processing task {queue[0]['id']}...")
             agents.ProcessingAgent().send({"type": "stop"})
+            # The agent will send UI updates when the task is stopped.
             return [gr.update()] * num_outputs
         else:
             removed_id = queue_manager_instance.remove_task(row_index)
             if removed_id is not None and queue_state.get("editing_task_id") == removed_id:
                 # If we deleted the task we were editing, cancel edit mode.
                 return cancel_edit_mode_action()
+            # No 'else' here. Let execution fall through to the default update at the end.
+
     elif action == "edit":
         task_to_edit = queue_manager_instance.get_task_to_edit(row_index)
         if not task_to_edit:
@@ -149,7 +154,7 @@ def handle_queue_action_on_select(*args, **kwargs):
         final_updates = (
             [gr.update(), queue_helpers.update_queue_df_display(), img_display_update, file_input_update] +
             ui_updates +
-            [gr.update(interactive=True), gr.update(interactive=True), gr.update(value="Update Task", variant="primary"), gr.update(visible=True)]
+            [gr.update(), gr.update(), gr.update(value="Update Task", variant="primary"), gr.update(visible=True)]
         )
         return final_updates
     elif action == "pause":

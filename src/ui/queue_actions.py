@@ -22,7 +22,7 @@ from .agents import ProcessingAgent
 
 logger = logging.getLogger(__name__)
 
-AUTOSAVE_FILENAME = "goan_autosave_queue.zip"
+AUTOSAVE_FILENAME_PATTERN = "goan_autosave_queue_pid{}.zip"
 
 def autosave_queue_on_exit_action():
     """Saves the current queue to a fixed autosave file on exit."""
@@ -32,8 +32,11 @@ def autosave_queue_on_exit_action():
         logger.info("Queue is empty, nothing to autosave.")
         return
     try:
-        # Use a similar logic to save_queue_to_zip but to a fixed path.
-        with zipfile.ZipFile(AUTOSAVE_FILENAME, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Create a process-specific filename in the system's temp directory.
+        # This prevents multiple instances from overwriting each other's autosave files.
+        filename = AUTOSAVE_FILENAME_PATTERN.format(os.getpid())
+        autosave_path = os.path.join(tempfile.gettempdir(), filename)
+        with zipfile.ZipFile(autosave_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             queue_manifest = []
             for task in queue:
                 params_copy = task['params'].copy()
@@ -50,7 +53,7 @@ def autosave_queue_on_exit_action():
                         zf.writestr(img_filename, buf.getvalue())
                 queue_manifest.append(manifest_entry)
             zf.writestr(shared_state_module.QUEUE_STATE_JSON_IN_ZIP, json.dumps(queue_manifest, indent=4))
-        logger.info(f"Successfully autosaved queue with {len(queue)} tasks to {AUTOSAVE_FILENAME}.")
+        logger.info(f"Successfully autosaved queue with {len(queue)} tasks to {autosave_path}.")
     except Exception as e:
         logger.error(f"Error during queue autosave: {e}", exc_info=True)
 
