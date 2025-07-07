@@ -30,7 +30,7 @@ def _load_transformer_model():
     transformer.eval()
     # Forcing high quality FP32 output is now handled in the worker based on this flag.
     transformer.high_quality_fp32_output_for_inference = True
-    transformer.to(dtype=transformer_dtype)
+    transformer = transformer.to(dtype=transformer_dtype)
     transformer.requires_grad_(False)
     print("Transformer loaded.")
     return transformer
@@ -61,7 +61,12 @@ def load_and_configure_models():
         'text_encoder_2': CLIPTextModel.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='text_encoder_2', torch_dtype=torch.float16).cpu(),
         'tokenizer': LlamaTokenizerFast.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer', legacy=False),
         'tokenizer_2': CLIPTokenizer.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='tokenizer_2', legacy=False),
-        'vae': AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float16).cpu(),
+        # --- VRAM Requirement Note ---
+        # The VAE must be loaded in float32. Its conv3d operations lack a float16 CUDA kernel,
+        # causing a NotImplementedError if run in half-precision. This increases the VAE's
+        # VRAM footprint from ~1.3GB to ~2.6GB and raises the app's minimum VRAM requirement
+        # from ~6GB to ~8GB in low-VRAM mode.
+        'vae': AutoencoderKLHunyuanVideo.from_pretrained("hunyuanvideo-community/HunyuanVideo", subfolder='vae', torch_dtype=torch.float32).cpu(),
         'feature_extractor': SiglipImageProcessor.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='feature_extractor'),
         'image_encoder': SiglipVisionModel.from_pretrained("lllyasviel/flux_redux_bfl", subfolder='image_encoder', torch_dtype=torch.float16).cpu(),
         'high_vram': high_vram
@@ -79,8 +84,9 @@ def load_and_configure_models():
         shared_state_instance.models['vae'].enable_tiling()
 
     # Set dtypes, forcing float16 for legacy GPU transformer
-    for model_name, dtype in [('vae', torch.float16), ('image_encoder', torch.float16), ('text_encoder', torch.float16), ('text_encoder_2', torch.float16)]:
-        shared_state_instance.models[model_name].to(dtype=dtype)
+    # The VAE is explicitly kept at float32 to prevent crashes.
+    for model_name, dtype in [('vae', torch.float32), ('image_encoder', torch.float16), ('text_encoder', torch.float16), ('text_encoder_2', torch.float16)]:
+        shared_state_instance.models[model_name] = shared_state_instance.models[model_name].to(dtype=dtype)
         
     for model_obj in shared_state_instance.models.values():
         if isinstance(model_obj, torch.nn.Module): # Ensure it's a PyTorch module before setting requires_grad
@@ -92,6 +98,9 @@ def load_and_configure_models():
         print("Low VRAM mode: Installing DynamicSwap.")
         # DynamicSwapInstaller.install_model(shared_state_instance.models['transformer'], device=gpu) # Transformer is now lazy loaded
         DynamicSwapInstaller.install_model(shared_state_instance.models['text_encoder'], device=gpu)
+        DynamicSwapInstaller.install_model(shared_state_instance.models['text_encoder_2'], device=gpu)
+        DynamicSwapInstaller.install_model(shared_state_instance.models['image_encoder'], device=gpu)
+        DynamicSwapInstaller.install_model(shared_state_instance.models['vae'], device=gpu)
     else:
         print("High VRAM mode: Moving all models to GPU.")
         for model_name in ['text_encoder', 'text_encoder_2', 'image_encoder', 'vae']: # Removed transformer

@@ -142,9 +142,6 @@ def worker(
         except Exception as e_png:
             logger.warning(f"Task {task_id}: Failed to save initial image with parameters: {e_png}")
 
-        if not high_vram:
-            unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
-
         output_queue_ref.push(
             (
                 "progress",
@@ -193,6 +190,16 @@ def worker(
                 ),
             )
         )
+        # --- ROBUSTNESS FIX ---
+        # The DynamicSwapInstaller, when applied to the VAE in low-VRAM mode,
+        # can implicitly cast it back to float16. To prevent a NotImplementedError
+        # with the VAE's conv3d operations, we explicitly cast it to float32
+        # right before it's used.
+        # CRITICAL: We must also set the `.dtype` attribute directly, because helper
+        # functions like `vae_encode` use `vae.dtype` to determine the input tensor's
+        # data type, which is the direct cause of the crash.
+        vae = vae.to(dtype=torch.float32)
+        vae.dtype = torch.float32
         start_latent = vae_encode(input_image_pt, vae)
         output_queue_ref.push(
             (
@@ -306,13 +313,6 @@ def worker(
             ].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
-            if not high_vram:
-                unload_complete_models()
-                move_model_to_device_with_memory_preservation(
-                    transformer,
-                    target_device=gpu,
-                    preserved_memory_gb=gpu_memory_preservation,
-                )
             transformer.initialize_teacache(
                 enable_teacache=use_teacache, num_steps=steps
             )
@@ -420,15 +420,15 @@ def worker(
                     [start_latent.to(generated_latents), generated_latents], dim=2
                 )
 
-            total_generated_latent_frames += int(generated_latents.shape[2])
-            history_latents = torch.cat(
-                [generated_latents.to(history_latents), history_latents], dim=2
-            )
+            # total_generated_latent_frames += int(generated_latents.shape[2])
+            # history_latents = torch.cat(
+            #     [generated_latents.to(history_latents), history_latents], dim=2
+            # )
 
-            if not high_vram:
-                offload_model_from_device_for_memory_preservation(
-                    transformer, target_device=gpu, preserved_memory_gb=8
-                )
+            # if not high_vram:
+            #     offload_model_from_device_for_memory_preservation(
+            #         transformer, target_device=gpu, preserved_memory_gb=8
+            #     )
 
             # Let the UI know that the expensive VAE decoding is happening
             output_queue_ref.push(
@@ -509,6 +509,4 @@ def worker(
         success = False
     finally:
         transformer.high_quality_fp32_output_for_inference = original_fp32_setting
-        if not high_vram:
-            unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
         output_queue_ref.push(('end', (task_id, success, final_output_filename)))
