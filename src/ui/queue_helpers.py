@@ -28,11 +28,11 @@ def np_to_base64_uri(np_array_or_tuple, format="png"):
             np_array = np_array_or_tuple
         else:
             return None
-        
+
         pil_image = Image.fromarray(np_array.astype(np.uint8))
         if format.lower() == "jpeg" and pil_image.mode == "RGBA":
             pil_image = pil_image.convert("RGB")
-        
+
         buffer = io.BytesIO()
         pil_image.save(buffer, format=format.upper())
         img_bytes = buffer.getvalue()
@@ -77,9 +77,9 @@ def reconstruct_queue_from_zip(zip_filepath: str) -> tuple[list, int]:
                         img_bytes = img_file.read()
                         pil_image = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
                         params['input_image'] = np.array(pil_image)
-                
+
                 new_queue.append({"id": task_id, "params": params, "status": "pending"})
-        
+
         return new_queue, max_id + 1
     except Exception as e:
         logger.error(f"Failed to reconstruct queue from zip '{zip_filepath}': {e}", exc_info=True)
@@ -122,9 +122,9 @@ def update_queue_df_display():
         pause_button = _button_markdown('⏸️', pause_enabled)
         edit_button = _button_markdown('✎', edit_enabled)
         cancel_button = _button_markdown('✖️', cancel_enabled)
-        
-        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt'] 
-        
+
+        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt']
+
         # Using html.escape() is more robust for tooltips
         prompt_title = html.escape(params['prompt'], quote=True)
         prompt_cell = f'<span title="{prompt_title}">{prompt_display}</span>'

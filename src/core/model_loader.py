@@ -87,7 +87,6 @@ def load_and_configure_models():
     # The VAE is explicitly kept at float32 to prevent crashes.
     for model_name, dtype in [('vae', torch.float32), ('image_encoder', torch.float16), ('text_encoder', torch.float16), ('text_encoder_2', torch.float16)]:
         shared_state_instance.models[model_name] = shared_state_instance.models[model_name].to(dtype=dtype)
-        
     for model_obj in shared_state_instance.models.values():
         if isinstance(model_obj, torch.nn.Module): # Ensure it's a PyTorch module before setting requires_grad
             model_obj.requires_grad_(False)

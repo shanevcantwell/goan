@@ -72,16 +72,16 @@ def process_task_queue_and_listen(*lora_control_values):
                 final_message = f"Task {data['id']} {status}."
                 if status == 'aborted':
                     final_message = f"Task {data['id']} stopped by user."
-                
+
                 yield (
-                    gr.update(), 
-                    queue_helpers.update_queue_df_display(), 
-                    gr.update(), 
-                    gr.update(), 
+                    gr.update(),
+                    queue_helpers.update_queue_df_display(),
+                    gr.update(),
+                    gr.update(),
                     final_message, # Progress description
                     gr.update(value=None, visible=False), # Clear progress bar
-                    gr.update(), 
-                    gr.update(), 
+                    gr.update(),
+                    gr.update(),
                     gr.update()
                 )
             elif flag == "info":

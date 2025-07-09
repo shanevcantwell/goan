@@ -68,7 +68,7 @@ def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
     """
     # The first argument is always the input image PIL object.
     input_image_pil = args_from_ui_controls_tuple[0]
-    
+
     if not input_image_pil:
         gr.Warning("Input image is required!")
         # Return no-op updates for all expected outputs.
@@ -95,6 +95,7 @@ def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
         # The switchboard expects a specific number of outputs, so we provide gr.update() placeholders.
         num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
         updates = [gr.update()] * num_outputs
+        # Index 0 is APP_STATE, Index 1 is QUEUE_DF
         updates[1] = queue_helpers.update_queue_df_display() # Index 1 is the queue dataframe
         return updates
     
@@ -103,7 +104,7 @@ def cancel_edit_mode_action():
     queue_manager_instance.set_editing_task(None)
     default_values_map = workspace_manager.get_default_values_map()
     ui_updates = [gr.update(value=default_values_map.get(key)) for key in shared_state_module.ALL_TASK_UI_KEYS]
-    
+
     # This function returns updates for the `add_task_outputs` list in the switchboard.
     # It's called after updating a task or when the "Cancel Edit" button is clicked.
     # The order of updates must match the switchboard's `add_task_outputs` list.
@@ -115,7 +116,7 @@ def cancel_edit_mode_action():
     return final_updates
 
 def handle_queue_action_on_select(evt: gr.SelectData, *args):
-     """
+    """
     Handles user clicks on action icons within the queue DataFrame.
     This version has the corrected signature to properly receive the event data as a positional argument.
     """
@@ -252,7 +253,7 @@ def load_queue_from_zip(zip_file_or_path):
         filepath = zip_file_or_path # type: ignore
     elif hasattr(zip_file_or_path, 'name') and zip_file_or_path.name and os.path.exists(zip_file_or_path.name):
         filepath = zip_file_or_path.name
-    
+
     if not filepath:
         logger.info("No valid queue file found to load.")
         return gr.update(), gr.update()
@@ -261,5 +262,5 @@ def load_queue_from_zip(zip_file_or_path):
     if new_queue:
         queue_manager_instance.load_queue(new_queue, next_id)
         gr.Info(f"Successfully loaded {len(new_queue)} tasks from {os.path.basename(filepath)}.")
-    
+
     return gr.update(), queue_helpers.update_queue_df_display()

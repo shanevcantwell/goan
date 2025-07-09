@@ -61,7 +61,6 @@ class QueueManager:
                     task_to_update["params"] = {**params, 'input_image': input_image}
                     task_to_update["status"] = "pending"
                     gr.Info(f"Task {task_id} updated.")
-            
             # Always exit edit mode after an attempt to update.
             self.state["editing_task_id"] = None
 

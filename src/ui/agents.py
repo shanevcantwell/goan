@@ -113,11 +113,11 @@ class ProcessingAgent(threading.Thread):
         if not self.is_processing:
             ui_update_queue.put(("info", "Cannot generate a preview when not processing."))
             return
-        
+
         logger.info("Preview request received by agent. Setting flag.")
         shared_state_module.shared_state_instance.preview_request_flag.set()
-        ui_update_queue.put(("info", "Preview requested. It will generate after the current sampling step."))    
-    
+        ui_update_queue.put(("info", "Preview requested. It will generate after the current sampling step."))
+
     def _processing_loop(self, start_message):
         lora_controls = start_message.get("lora_controls")
 

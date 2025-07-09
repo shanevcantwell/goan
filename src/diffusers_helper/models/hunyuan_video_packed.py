@@ -900,9 +900,16 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
             clean_latents_4x=None, clean_latent_4x_indices=None
     ):
         
-        # On legacy GPUs (like Turing), conv3d lacks a bfloat16 CUDA kernel.
-        # We cast the input latents to float32 here to ensure compatibility,
-        # making the model robust against state corruption from the offload/reload cycle.
+        # --- CRITICAL: Data Type Consistency for Conv3d Layers ---
+        # The Conv3d layers in this model (e.g., x_embedder.proj) are highly sensitive
+        # to mixed-precision inputs on modern GPUs. The entire transformer is loaded with a
+        # specific dtype (e.g., bfloat16). To prevent crashes, the input `latents` tensor
+        # MUST be cast to the *exact same dtype* as the model (`self.dtype`).
+        #
+        # DO NOT force a different dtype here (e.g., .to(torch.float32)) if the model
+        # is bfloat16. Doing so creates a mixed-precision conflict that is not supported
+        # by the optimized cuDNN kernels, causing a fallback to a generic kernel that
+        # will raise the `aten::slow_conv3d_forward` CUDA error.
         latents = latents.to(self.dtype)
 
         hidden_states = self.gradient_checkpointing_method(self.x_embedder.proj, latents)
@@ -917,7 +924,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
         rope_freqs = rope_freqs.flatten(2).transpose(1, 2)
 
         if clean_latents is not None and clean_latent_indices is not None:
-            clean_latents = clean_latents.to(hidden_states)
+            clean_latents = clean_latents.to(self.dtype)
             clean_latents = self.gradient_checkpointing_method(self.clean_x_embedder.proj, clean_latents)
             clean_latents = clean_latents.flatten(2).transpose(1, 2)
 
@@ -928,7 +935,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
             rope_freqs = torch.cat([clean_latent_rope_freqs, rope_freqs], dim=1)
 
         if clean_latents_2x is not None and clean_latent_2x_indices is not None:
-            clean_latents_2x = clean_latents_2x.to(hidden_states)
+            clean_latents_2x = clean_latents_2x.to(self.dtype)
             clean_latents_2x = pad_for_3d_conv(clean_latents_2x, (2, 4, 4))
             clean_latents_2x = self.gradient_checkpointing_method(self.clean_x_embedder.proj_2x, clean_latents_2x)
             clean_latents_2x = clean_latents_2x.flatten(2).transpose(1, 2)
@@ -942,7 +949,7 @@ class HunyuanVideoTransformer3DModelPacked(ModelMixin, ConfigMixin, PeftAdapterM
             rope_freqs = torch.cat([clean_latent_2x_rope_freqs, rope_freqs], dim=1)
 
         if clean_latents_4x is not None and clean_latent_4x_indices is not None:
-            clean_latents_4x = clean_latents_4x.to(hidden_states)
+            clean_latents_4x = clean_latents_4x.to(self.dtype)
             clean_latents_4x = pad_for_3d_conv(clean_latents_4x, (4, 8, 8))
             clean_latents_4x = self.gradient_checkpointing_method(self.clean_x_embedder.proj_4x, clean_latents_4x)
             clean_latents_4x = clean_latents_4x.flatten(2).transpose(1, 2)
