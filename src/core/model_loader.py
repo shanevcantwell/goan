@@ -96,11 +96,12 @@ def load_and_configure_models():
     # Install memory-saving tools or move models to GPU
     if not high_vram:
         print("Low VRAM mode: Installing DynamicSwap.")
-        # DynamicSwapInstaller.install_model(shared_state_instance.models['transformer'], device=gpu) # Transformer is now lazy loaded
+        # The VAE is explicitly excluded from the swapper due to a dtype conflict.
+        # Its Conv3d layers require float32, but the swapper implicitly casts models
+        # to float16. The VAE's memory is managed manually in generation_core.py.
         DynamicSwapInstaller.install_model(shared_state_instance.models['text_encoder'], device=gpu)
         DynamicSwapInstaller.install_model(shared_state_instance.models['text_encoder_2'], device=gpu)
         DynamicSwapInstaller.install_model(shared_state_instance.models['image_encoder'], device=gpu)
-        DynamicSwapInstaller.install_model(shared_state_instance.models['vae'], device=gpu)
     else:
         print("High VRAM mode: Moving all models to GPU.")
         for model_name in ['text_encoder', 'text_encoder_2', 'image_encoder', 'vae']: # Removed transformer

@@ -1,4 +1,11 @@
-The core issue is that while the design documents describe a complete, agent-driven pause architecture, the code has not yet fully implemented it. The following steps will bridge that gap.
+---
+# Design Doc: Multi-User Architecture and Stateless I/O
+
+-   **Author**: Gemini Code Assist
+-   **Date**: 2025-07-06
+-   **Status**: Proposed
+
+---
 
 1. Complete the Resume File Handler
 The entry point for resuming a task, workspace.handle_file_drop, is currently incomplete. It needs to be finished to correctly process .goan_resume files.
@@ -51,3 +58,4 @@ Ensure worker() and agent logic use "paused_with_state" for user-initiated, resu
 Update UI and queue status labels to reflect "Paused" instead of "Aborted".
 Remove or clarify any remaining references to "abort" that refer to non-resumable cancellation, if such a state is not needed.
 Completing these five areas will result in a fully functional, robust, and user-friendly pause and resume system that matches the architecture described in the design documents.
+---

@@ -1,3 +1,4 @@
+---
 # Design Doc: Multi-User Architecture and Stateless I/O
 
 -   **Author**: Gemini Code Assist
@@ -76,3 +77,4 @@ While Phase 2 provides a robust and secure solution, the ultimate "zero-trust" a
 *   **Direct-to-Cloud Worker:** The `worker` process would use the authenticated user's credentials (access tokens) and the respective cloud provider's SDK to stream the generated MP4 file directly to the user's storage bucket/folder, bypassing the server's local disk entirely.
 
 This approach offers the highest level of security and scalability but represents a significant increase in implementation complexity and will be considered for a future major version.
+---

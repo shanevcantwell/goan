@@ -1,5 +1,7 @@
 # ui/queue.py
-# Handles all user-facing queue management logic and event handling for the UI.
+# This file is the single source of truth for all user-facing queue management logic
+# and event handlers. It has been consolidated from queue.py and queue_actions.py
+# to eliminate ambiguity and bugs related to duplicated functions.
 
 import gradio as gr
 import numpy as np
@@ -19,7 +21,37 @@ from . import queue_helpers, agents
 
 logger = logging.getLogger(__name__)
 
-AUTOSAVE_FILENAME = "goan_autosave_queue.zip"
+# Use a process-specific filename to prevent conflicts between multiple running instances.
+AUTOSAVE_FILENAME_PATTERN = "goan_autosave_queue_pid{}.zip"
+
+def autosave_queue_on_exit_action():
+    """Saves the current queue to a fixed autosave file on exit."""
+    logger.info("Autosaving queue on exit...")
+    queue = queue_manager_instance.get_state().get("queue")
+    if not queue:
+        logger.info("Queue is empty, nothing to autosave.")
+        return
+    try:
+        filename = AUTOSAVE_FILENAME_PATTERN.format(os.getpid())
+        autosave_path = os.path.join(tempfile.gettempdir(), filename)
+        with zipfile.ZipFile(autosave_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            queue_manifest = []
+            for task in queue:
+                params_copy = task['params'].copy()
+                input_image_np = params_copy.pop('input_image', None)
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": "pending"}
+                if input_image_np is not None:
+                    img_filename = f"task_{task['id']}_input.png"
+                    manifest_entry['image_ref'] = img_filename
+                    img = Image.fromarray(input_image_np)
+                    with io.BytesIO() as buf:
+                        img.save(buf, format='PNG')
+                        zf.writestr(img_filename, buf.getvalue())
+                queue_manifest.append(manifest_entry)
+            zf.writestr(shared_state_module.QUEUE_STATE_JSON_IN_ZIP, json.dumps(queue_manifest, indent=4))
+        logger.info(f"Successfully autosaved queue with {len(queue)} tasks to {autosave_path}.")
+    except Exception as e:
+        logger.error(f"Error during queue autosave: {e}", exc_info=True)
 
 # This mapping must match the header order in layout.py
 ACTION_COLUMN_MAP = {
@@ -82,13 +114,16 @@ def cancel_edit_mode_action():
     )
     return final_updates
 
-def handle_queue_action_on_select(*args, **kwargs):
-    # The full list of UI components is passed in *args, but we don't need them here.
+def handle_queue_action_on_select(evt: gr.SelectData, *args):
+     """
+    Handles user clicks on action icons within the queue DataFrame.
+    This version has the corrected signature to properly receive the event data as a positional argument.
+    """
     # The number of outputs must match the switchboard's `select_q_outputs` list.
     num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
-    evt = kwargs.get("evt")
     # Guard against missing event data, which can happen on UI refresh/desync.
-    if not evt or evt.index is None:
+    # The `evt: gr.SelectData` type hint ensures Gradio passes the event data correctly.
+    if evt.index is None:
         return [gr.update()] * num_outputs
 
     row_index, col_index = evt.index
@@ -128,7 +163,9 @@ def handle_queue_action_on_select(*args, **kwargs):
         queue_manager_instance.move_task('down', row_index)
     elif action == "cancel":
         if is_processing:
-            gr.Info(f"Stopping and removing currently processing task {queue[0]['id']}...")
+            # Corrected UI message: The task is stopped, not removed.
+            # The backend will reset its status to 'pending'.
+            gr.Info(f"Requesting stop for currently processing task {queue[0]['id']}...")
             agents.ProcessingAgent().send({"type": "stop"})
             # The agent will send UI updates when the task is stopped.
             return [gr.update()] * num_outputs

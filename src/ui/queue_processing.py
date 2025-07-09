@@ -26,6 +26,14 @@ def process_task_queue_and_listen(*lora_control_values):
         return [gr.update()] * 9
 
     # If not processing, this is a "start" request.
+    # --- FIX: Clear all state flags at the beginning of a new run ---
+    # This prevents a "stuck" stop or pause signal from a previous,
+    # potentially interrupted, run from immediately terminating the new one.
+    shared_state_module.shared_state_instance.interrupt_flag.clear()
+    shared_state_module.shared_state_instance.stop_requested_flag.clear()
+    shared_state_module.shared_state_instance.preview_request_flag.clear()
+    shared_state_module.shared_state_instance.pause_request_flag.clear()
+    logger.info("State flags cleared for new queue run.")
     agent.send({
         "type": "start",
         "lora_controls": lora_control_values

@@ -1,3 +1,13 @@
+---
+# Design Doc: Multi-User Architecture and Stateless I/O
+
+-   **Author**: Gemini Code Assist
+-   **Date**: 2025-07-06
+-   **Status**: Proposed
+
+---
+
+
 # Refactoring Plan: Migrating to a "Handler-Returns-Dict" Architecture
 
 ## 1. Objective
@@ -47,3 +57,4 @@ def apply_updates(update_dict: Dict, output_keys: List) -> List:
         print(f"WARNING: apply_updates expected a dict but got {type(update_dict)}. Returning no-op updates.")
         return [gr.update() for _ in output_keys]
     return [update_dict.get(key, gr.update()) for key in output_keys]
+---

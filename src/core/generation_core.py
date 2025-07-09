@@ -190,17 +190,17 @@ def worker(
                 ),
             )
         )
-        # --- ROBUSTNESS FIX ---
-        # The DynamicSwapInstaller, when applied to the VAE in low-VRAM mode,
-        # can implicitly cast it back to float16. To prevent a NotImplementedError
-        # with the VAE's conv3d operations, we explicitly cast it to float32
-        # right before it's used.
-        # CRITICAL: We must also set the `.dtype` attribute directly, because helper
-        # functions like `vae_encode` use `vae.dtype` to determine the input tensor's
-        # data type, which is the direct cause of the crash.
-        vae = vae.to(dtype=torch.float32)
-        vae.dtype = torch.float32
+        # --- Manual VAE Management for Low-VRAM Mode ---
+        # The VAE is not managed by the swapper, so we load/unload it manually.
+        if not high_vram:
+            logger.info(f"Task {task_id}: Loading VAE to GPU for encoding...")
+            load_model_as_complete(vae, target_device=gpu)
+
         start_latent = vae_encode(input_image_pt, vae)
+
+        if not high_vram:
+            unload_complete_models(vae)
+
         output_queue_ref.push(
             (
                 "progress",
@@ -443,6 +443,11 @@ def worker(
                 )
             )
 
+            # --- Manual VAE Management for Low-VRAM Mode ---
+            if not high_vram:
+                logger.info(f"Task {task_id}: Loading VAE to GPU for decoding...")
+                load_model_as_complete(vae, target_device=gpu)
+
             real_history_latents = history_latents[
                 :, :, :total_generated_latent_frames, :, :
             ]
@@ -462,6 +467,9 @@ def worker(
                 history_pixels = soft_append_bcthw(
                     current_pixels, history_pixels, overlapped_frames
                 )
+
+            if not high_vram:
+                unload_complete_models(vae)
 
             current_video_frame_count = history_pixels.shape[2]
 

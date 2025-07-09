@@ -1,3 +1,12 @@
+---
+# Design Doc: Multi-User Architecture and Stateless I/O
+
+-   **Author**: Gemini Code Assist
+-   **Date**: 2025-07-06
+-   **Status**: Proposed
+
+---
+
 # **Guide: Advanced Looping in Generative Video with Latent Manipulation**
 
 Achieving truly seamless, non-ping-pong looping animations with generative AI models like Hunyuan often requires more than simple concatenation or basic blending. This guide outlines a powerful conceptual approach that involves **manipulating the latent history** to explicitly guide the model through the loop transition, leveraging its core denoising capabilities.
@@ -441,3 +450,4 @@ def create_seamless_loop_latents(
 #     # Optionally, add a small amount of noise again after a few steps
 #     # to encourage further creative refinement, or for a "diffusion-like" pass.
 #     # refined_latents += torch.randn_like(refined_latents) * small_refinement_noise
+---
