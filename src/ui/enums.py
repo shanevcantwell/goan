@@ -71,10 +71,12 @@ class ComponentKey(StrEnum):
     # The singular names here are placeholders for a future system that will support multiple LoRAs dynamically.
     LORA_ACCORDION = auto()
     LORA_UPLOAD_BUTTON = auto()
-    LORA_ROW = auto()
-    LORA_NAME = auto()
+    LORA_REFRESH_BUTTON = auto()
+    LORA_NAMES = auto()
     LORA_WEIGHT = auto()
     LORA_TARGETS = auto()
+    LORA_ROW = auto()
+    LORA_NAME = auto()
 
     # --- Debug Settings & Workspace ---
     USE_TEACACHE_CHECKBOX = auto()

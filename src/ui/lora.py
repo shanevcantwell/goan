@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 LORA_DIR = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'loras')))
 os.makedirs(LORA_DIR, exist_ok=True)
 
+def list_loras():
+    """Returns a list of LoRA filenames found in the LoRA directory."""
+    if not os.path.exists(LORA_DIR):
+        return []
+    # Return a list with a blank entry so the user can "select" no LoRA for a slot.
+    loras = [f for f in os.listdir(LORA_DIR) if f.endswith(('.safetensors', '.pt', '.bin'))]
+    return [""] + sorted(loras)
+
 LORA_TARGET_MAP = {
     "transformer": {"model_key": "transformer", "lora_prefix": "lora_unet"},
     "text_encoder": {"model_key": "text_encoder", "lora_prefix": "lora_te1"},
