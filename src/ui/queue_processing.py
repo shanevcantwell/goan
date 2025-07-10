@@ -66,7 +66,19 @@ def process_task_queue_and_listen(*lora_control_values):
                 yield (gr.update(), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
             elif flag == "task_starting":
                 task = data  # type: ignore
-                yield (gr.update(), queue_helpers.update_queue_df_display(), gr.update(), gr.update(), f"Processing Task {task['id']}...", gr.update(), gr.update(), gr.update(), gr.update())
+                # This yield was missing the explicit `visible=True` for the progress bar.
+                # By adding it, we ensure the bar remains visible when the task starts.
+                yield (
+                    gr.update(),                                  # APP_STATE
+                    queue_helpers.update_queue_df_display(),      # QUEUE_DF
+                    gr.update(),                                  # LAST_FINISHED_VIDEO
+                    gr.update(),                                  # CURRENT_TASK_PREVIEW_IMAGE
+                    f"Processing Task {task['id']}...",            # CURRENT_TASK_PROGRESS_DESCRIPTION
+                    gr.update(value=None, visible=True),          # CURRENT_TASK_PROGRESS_BAR
+                    gr.update(),                                  # PROCESS_QUEUE_BUTTON
+                    gr.update(),                                  # CREATE_PREVIEW_BUTTON
+                    gr.update()                                   # CLEAR_QUEUE_BUTTON
+                )
             elif flag == "task_finished":
                 status = data['status']
                 final_message = f"Task {data['id']} {status}."
