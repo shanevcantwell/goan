@@ -15,6 +15,15 @@ The application is built on four core principles:
 
 ---
 
+### State Management at a Glance
+
+| Component | Responsibility | Key State Attributes |
+| :--- | :--- | :--- |
+| **`SharedState`** | Holds global, thread-safe application state and threading events. | `interrupt_flag`, `stop_requested_flag`, `manual_preview_request_flag`, `pause_request_flag`, `models` (dict), `system_info` (dict) |
+| **`QueueManager`** | Manages all operations on the task queue data structure. | `queue` (list), `processing` (bool), `editing_task_id` (int/None), `next_task_id` (int) |
+
+---
+
 ## 2. Core Architecture Overview
 
 The application can be understood as three main layers:
@@ -29,6 +38,26 @@ The application can be understood as three main layers:
     *   **`ui/queue_manager.py`**: The thread-safe singleton for all queue data operations.
     *   **`ui/event_handlers.py`, `ui/queue.py`, `ui/workspace.py`**: These modules contain handler functions for synchronous UI events (e.g., adding a task, clearing an image). They directly call the `QueueManager` or other services and return tuples of `gr.update()` objects.
     *   **`switchboard_*.py` files**: These modules are responsible for wiring UI component events (e.g., `.click()`, `.upload()`) to their respective handler functions.
+
+---
+
+### Agent & Worker Communication
+
+Communication between the UI, the agent, and the worker is handled via message passing through queues and events.
+
+| Sender | Receiver | Message / Event | Purpose |
+| :--- | :--- | :--- | :--- |
+| **UI Listener** | `ProcessingAgent` | `{"type": "start"}` | Start processing the task queue. |
+| **UI Listener** | `ProcessingAgent` | `{"type": "stop_queue"}` | Request a hard stop of the entire queue. |
+| **UI Listener** | `ProcessingAgent` | `{"type": "cancel_task"}` | Request a soft stop of only the current task. |
+| **UI Listener** | `ProcessingAgent` | `{"type": "pause"}` | Request a graceful pause of the current task. |
+| **`worker`** | `ProcessingAgent` | `('progress', data)` | Send real-time progress updates (image, text, progress bar). |
+| **`worker`** | `ProcessingAgent` | `('file', data)` | Notify that a preview or final video file has been saved. |
+| **`worker`** | `ProcessingAgent` | `('end', data)` | Signal that the task has completed successfully. |
+| **`worker`** | `ProcessingAgent` | `('error', data)` | Signal that a fatal error occurred. |
+| **`worker`** | `ProcessingAgent` | `('paused_with_state', data)` | Signal a successful pause and provide resume data. |
+| **`ProcessingAgent`** | **`worker`** | `interrupt_flag.set()` | Signal the worker to perform an immediate, hard stop. |
+| **`ProcessingAgent`** | **`worker`** | `pause_request_flag.set()` | Signal the worker to perform a graceful pause. |
 
 ---
 
@@ -50,22 +79,81 @@ The application can be understood as three main layers:
 
 ### Flow 2: Stopping a Task (Interrupt-Driven)
 
-1.  **User Action**: While a task is running, the user clicks the "Stop Processing" button.
-2.  **Switchboard**: The `.click()` event again calls `process_task_queue_and_listen`.
-3.  **UI Listener**: This time, the function sees that `processing` is `True`. It sets a `stop_requested_flag` for immediate UI feedback (disabling other buttons) and sends a `{"type": "stop"}` message to the `ProcessingAgent`.
-4.  **Agent**: The agent's `_handle_stop` method sets the global `shared_state_instance.interrupt_flag`.
-5.  **Worker**: The `worker` is designed to check `interrupt_flag.is_set()` frequently (between segments and within the sampling loop). When it detects the flag, it raises an `InterruptedError`.
-6.  **Graceful Exit**: The `worker`'s main `try...except` block catches the `InterruptedError`, pushes a final `('aborted', ...)` message to its output queue, and cleans up.
-7.  **Agent**: The agent's `_processing_loop` receives the `'aborted'` message. It calls `queue_manager_instance.complete_task()` to reset the task's status to `"pending"` (so it can be run again) and then pushes a `('task_finished', {"status": "aborted"})` message to the `ui_update_queue`.
-8.  **UI Update**: The UI listener receives the `task_finished` signal and updates the UI to show the task was stopped, clearing progress bars and resetting button states.
+`goan` supports two types of stops: a "soft stop" to cancel only the current task and proceed to the next, and a "hard stop" to terminate the entire queue.
+
+1.  **User Action**: While a task is running, the user clicks either the "X" on the task row (soft stop) or the main "Stop Processing" button (hard stop).
+2.  **Switchboard & UI Handlers**:
+    *   For a **soft stop**, the `handle_queue_action_on_select` function in `ui/queue.py` sends a `{"type": "cancel_task"}` message to the `ProcessingAgent`.
+    *   For a **hard stop**, the `process_task_queue_and_listen` function in `ui/queue_processing.py` sets the `stop_requested_flag` and sends a `{"type": "stop_queue"}` message.
+3.  **Agent**:
+    *   `_handle_cancel_task` sets only the `interrupt_flag`. The agent's processing loop will see this, finish the current task with an "aborted" status, and then simply proceed to the next task in the queue.
+    *   `_handle_stop_queue` sets both the `interrupt_flag` (to stop the worker) and the `stop_requested_flag` (to terminate the agent's processing loop).
+4.  **Worker**: The `worker` is designed to check `interrupt_flag.is_set()` frequently. When it detects the flag, it raises an `InterruptedError`.
+5.  **Graceful Exit**: The `worker`'s main `try...except` block catches the `InterruptedError`, pushes a final `('aborted', ...)` message to its output queue, and cleans up.
+6.  **Agent**: The agent's `_processing_loop` receives the `'aborted'` message. It calls `queue_manager_instance.complete_task()` to reset the task's status to `"pending"` (so it can be run again) and then pushes a `('task_finished', {"status": "aborted"})` message to the `ui_update_queue`.
+7.  **UI Update**: The UI listener receives the `task_finished` signal and updates the UI to show the task was stopped, clearing progress bars and resetting button states.
  
 ### Flow 3: Requesting a Manual Preview (Event-Driven during Processing)
 
-1.  **User Action**: While a task is processing, the
+1.  **User Action**: While a task is processing, the user clicks the "Create Preview Now" button.
+2.  **Switchboard**: The `.click()` event calls `toggle_manual_preview_action` in `event_handlers.py`.
+3.  **Event Handler**: This function sets the `shared_state_instance.manual_preview_request_flag` and optimistically updates the button text to "Cancel Preview Request". If clicked again, it clears the flag and reverts the text.
+4.  **Worker**: At the start of each new segment, the `worker` checks if `manual_preview_request_flag.is_set()`.
+5.  **Preview Generation**: If the flag is set, the worker generates a preview for that segment (even if it wasn't automatically scheduled). It then calls `manual_preview_request_flag.clear()` to consume the request.
+6.  **UI Update**: The worker pushes the preview file path to the agent via a `('file', ...)` message. The agent forwards this to the UI listener, which updates the video player in the UI.
+7.  **Button State Reset**: The `ProcessingAgent` is also responsible for sending a UI update to reset the "Create Preview" button back to its default "Create Preview Now" state. This happens because the agent, upon receiving the next segment's progress, will see the flag is now clear and update the button accordingly.
 
 ---
 
-## 4. Module Contracts (File-by-File)
+## 4. UI State Logic: The Button State Machine
+
+The interactivity of the main control buttons is managed by a single function, `update_button_states` in `event_handlers.py`. It acts as a state machine, deriving the application's current state and applying a set of rules to determine which buttons should be enabled or disabled.
+
+| Application State | `Process Queue` Button | `Add Task` Button | `Create Preview` Button | Other Buttons |
+| :--- | :--- | :--- | :--- | :--- |
+| **Stopping** | `Stopping...` (disabled) | Disabled | Disabled | Disabled |
+| **Editing Task** | Disabled | `Update Task` (enabled) | Disabled | `Cancel Edit` is visible/enabled. Others disabled. |
+| **Processing** | `Stop Processing` (enabled) | Enabled (if image present) | Enabled (as a toggle) | `Clear Queue` enabled (if pending tasks exist). Others disabled. |
+| **Idle** | Enabled (if queue has tasks) | Enabled (if image present) | Disabled | `Save Queue`, `Clear Queue`, `Clear/Download Image` enabled based on context. |
+
+---
+
+## 5. Notable Implementations
+
+### Legacy GPU Support (Compute Capability < 8.0)
+
+The application provides out-of-the-box support for older NVIDIA GPUs (Turing architecture, SM7.5) that lack `bfloat16` support. This is handled through a series of automated steps:
+
+1.  **Detection**: On startup, `core/model_loader.py` checks the GPU's compute capability. If it's less than 8.0, it sets a global `is_legacy_gpu` flag in `shared_state_instance`.
+2.  **Model Loading**: When the `transformer` is loaded, this flag forces its data type to `torch.float32` instead of the default `torch.bfloat16`, preventing data type errors on older hardware.
+3.  **Inference**: The `worker` in `core/generation_core.py` also checks this flag and forces the `use_fp32_transformer_output` setting to `True`, ensuring stable inference. The corresponding UI checkbox is automatically hidden to prevent user confusion.
+
+This approach, based on work by `@freely-boss`, ensures maximum compatibility without requiring any user intervention.
+
+### LoRA Application and Reversion
+
+The LoRA system is designed to be robust and flexible, handling the entire lifecycle of applying and reverting LoRA weights without leaving the models in a modified state. The core logic resides in the `LoRAManager` class in `src/ui/lora.py`.
+
+*   **Multi-LoRA Support**: The UI provides 5 slots to apply LoRAs sequentially. The `ProcessingAgent` iterates through the configured slots and calls `apply_lora` for each one before the first task begins. This allows for blending and experimenting with multiple concepts.
+
+*   **Lifecycle**: The `ProcessingAgent` creates a `LoRAManager` instance at the start of a queue run. It applies all configured LoRAs and ensures `revert_all_loras` is called in a `finally` block, guaranteeing that models are cleaned up even if an error occurs.
+
+*   **Static Merging**: `goan` uses a static merging strategy. Instead of injecting adapter layers, it directly modifies the weights of the target model layers in memory.
+    *   Before a weight is modified, its original state is cloned and stored in the `_original_params` dictionary.
+    *   The LoRA's `down` and `up` weights are used to calculate a `delta_w` tensor, which is then added to the original weight.
+
+*   **Key Name Translation & Compatibility**:
+    *   **Automatic Translation**: A key feature is the `_convert_hunyuan_keys_to_framepack` function. Many "wild" LoRAs are trained using different conventions (e.g., `kohya-ss`). This function acts as a translator, intelligently renaming layers from common formats to match the specific architecture of the FramePack models. This includes complex operations like splitting a single `QKV` weight tensor from a LoRA into the separate `Q`, `K`, and `V` weights required by the model.
+    *   **Model Mismatch**: While the translator improves compatibility, it's important to note that FramePack is a fine-tuned version of the base Hunyuan model. Applying a LoRA trained on the base Hunyuan model may produce unpredictable or unintended effects.
+    *   **Unknown Keys**: The key translator is based on common LoRA formats. It is possible to encounter a LoRA with a novel key naming scheme that the translator does not recognize. In such cases, the LoRA may fail to apply to any layers.
+
+*   **Device-Aware Reversion**: The `revert_all_loras` function is carefully designed to prevent device mismatch errors. When restoring a backed-up weight from CPU memory to a model that is currently on the GPU, it explicitly calls `.to(model_device)` on the parameter before assigning it. This prevents the common `RuntimeError: Expected all tensors to be on the same device...` that can occur in complex, memory-managed pipelines.
+
+*   **UI Feedback**: To address the inconsistent nature of wild LoRAs, the `apply_lora` function provides immediate feedback to the user via a `gr.Info` or `gr.Warning` popup, reporting exactly how many layers were successfully merged. This instantly tells the user if a given LoRA is compatible with the selected model targets.
+
+---
+
+## 6. Module Contracts (File-by-File)
 
 ### `src/core/` - The Backend Engine
 
