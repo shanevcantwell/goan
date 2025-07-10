@@ -93,6 +93,12 @@ class QueueManager:
             else:
                 gr.Info("No pending tasks to clear.")
 
+    def clear_edit_mode(self):
+        """Resets the task editing state to None."""
+        with self.lock:
+            if "editing_task_id" in self.state:
+                self.state["editing_task_id"] = None
+
     def set_editing_task(self, task_id: int | None):
         with self.queue_lock:
             self.state["editing_task_id"] = task_id

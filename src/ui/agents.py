@@ -52,6 +52,14 @@ class ProcessingAgent(threading.Thread):
             super().__init__(daemon=True)
             self.mailbox = queue.Queue()
             self.is_processing = False
+
+            # On agent initialization (app startup), forcefully reset the queue's
+            # processing and editing state. This prevents a stale state from a
+            # previous session's `unload` event from causing a UI lockup on refresh.
+            logger.info("ProcessingAgent initializing, resetting queue state to idle.")
+            queue_manager_instance.set_processing(False)
+            queue_manager_instance.clear_edit_mode()
+
             self.start()
             self._initialized = True
 
