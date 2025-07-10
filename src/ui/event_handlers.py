@@ -14,14 +14,14 @@ from .queue_manager import queue_manager_instance
 logger = logging.getLogger(__name__)
 
 
-# def reuse_last_seed_action(last_completed_seed):
-#     """Returns the last completed seed, or -1 if none exists."""
-#     if last_completed_seed is not None:
-#         gr.Info(f"Reusing last completed seed: {last_completed_seed}")
-#         return last_completed_seed
-#     else:
-#         gr.Warning("No task has been completed yet to reuse a seed from.")
-#         return gr.update() # Return no-op to not change the value
+def reuse_last_seed_action(last_completed_seed):
+    """Returns the last completed seed, or -1 if none exists."""
+    if last_completed_seed is not None:
+        gr.Info(f"Reusing last completed seed: {last_completed_seed}")
+        return last_completed_seed
+    else:
+        gr.Warning("No task has been completed yet to reuse a seed from.")
+        return gr.update() # Return no-op to not change the value
 
 def safe_shutdown_action(app_state, *ui_values):
     """Performs all necessary save operations to prepare the app for a clean shutdown."""
@@ -59,8 +59,6 @@ def process_upload_and_show_image(temp_file_data):
         return (
             gr.update(visible=True, value=None),    # IMAGE_FILE_INPUT
             gr.update(visible=False, value=None),   # INPUT_IMAGE_DISPLAY
-            
-            # [svc: are these actually effectively just 1 thing? When are they ever changed indpendently? Maybe during edit...]
             gr.update(interactive=False),           # CLEAR_IMAGE_BUTTON
             gr.update(interactive=False),           # DOWNLOAD_IMAGE_BUTTON
             gr.update(variant="secondary"),         # ADD_TASK_BUTTON
@@ -111,14 +109,26 @@ def prepare_image_for_download(pil_image, app_state, ui_keys, *creative_values):
         gr.Info("Image with current settings prepared for download.")
         return gr.update(value=tmp_file.name)
 
+
+def toggle_manual_preview_action():
+    """
+    Toggles the manual preview request flag in shared state and provides
+    optimistic UI feedback on the button itself. The backend worker is
+    responsible for reading this flag and clearing it after use.
+    """
+    if shared_state_module.shared_state_instance.manual_preview_request_flag.is_set():
+        shared_state_module.shared_state_instance.manual_preview_request_flag.clear()
+        return gr.update(value="Create Preview Now")
+    else:
+        shared_state_module.shared_state_instance.manual_preview_request_flag.set()
+        return gr.update(value="Cancel Preview Request")
+
 # Define the button keys in a fixed order for consistent output.
 BUTTON_KEYS = [
     K.ADD_TASK_BUTTON,
     K.PROCESS_QUEUE_BUTTON,
     K.CREATE_PREVIEW_BUTTON,
     K.CLEAR_IMAGE_BUTTON,
-    
-    # [svc: output they're definitely each unique]
     K.DOWNLOAD_IMAGE_BUTTON,
     K.SAVE_QUEUE_BUTTON,
     K.CLEAR_QUEUE_BUTTON,
