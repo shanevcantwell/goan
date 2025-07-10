@@ -1,61 +1,125 @@
+# TODO: Task Checkpointing & Resumption Feature
+
 ---
 # Design Doc: Multi-User Architecture and Stateless I/O
 
 -   **Author**: Gemini Code Assist
 -   **Date**: 2025-07-06
--   **Status**: Proposed
+**Status:** Design Complete, Implementation Deferred Post-Alpha
+
+This document outlines the design for a crash-proof task resumption feature. The goal is to allow users to recover from application crashes or intentional pauses without losing significant progress.
 
 ---
 
-1. Complete the Resume File Handler
-The entry point for resuming a task, workspace.handle_file_drop, is currently incomplete. It needs to be finished to correctly process .goan_resume files.
+## 1. Core Mechanism: Transactional Checkpointing
 
-Unpack the Archive: The function must fully unzip the .goan_resume file into a temporary directory.
-Load Parameters: It needs to read params.json from the archive and use the _apply_settings_dict_to_ui helper to populate all the creative UI controls.
-Load Source Image: It must load source_image.png and display it in the INPUT_IMAGE_DISPLAY.
-Persist Latent State: The path to the extracted latent_history.pt needs to be saved into the RESUME_LATENT_PATH_STATE so it can be passed to the worker when the task is added to the queue.
-Update UI Labels: Implement the logic to dynamically change the VIDEO_LENGTH_SLIDER slider's label to "Additional Video Length (s)" to provide clear user feedback.
-2. Implement the Agent-Driven Pause Logic
-The current ProcessingAgent only handles "start" and "stop". The crucial "pause" orchestration is missing.
+To prevent corrupted state files during a crash, the system will use a "write-then-rename" atomic operation.
 
-Modify the Worker (generation_core.py):
+1.  **Write to Temp:** After each successful video segment, the worker will save the complete resume state (the latest `history_latents` tensor, the current segment number, and all creative parameters) to a temporary file (e.g., `task_123.tmp`).
+2.  **Atomic Rename:** Once the write is complete and flushed to disk, the worker will perform an atomic `os.replace()` to rename the temporary file to the final checkpoint file (e.g., `task_123.goan_resume`).
 
-The try...except (InterruptedError, KeyboardInterrupt) block needs to be updated. When an interruption occurs, it must push a new message, like ('interrupted_with_state', (task_id, history_latents_for_abort)), to the output_queue_ref before it sends the final ('aborted', ...) signal. This provides the agent with the necessary data to save the state.
-Enhance the Agent (agents.py):
+This ensures that the `.goan_resume` file is never in a partially-written state.
 
-Add a _handle_pause method that sets an internal self.pause_requested = True flag and then sets the global interrupt_flag.
-In the _processing_loop, after receiving the 'aborted' signal from the worker, check if self.pause_requested is True.
-If it is, the agent must take the history_latents it received from the 'interrupted_with_state' message and call generation_utils.save_resume_state() to create the .goan_resume file.
-After saving, the agent should push a new ('paused', (task_id, path_to_resume_file)) message to the ui_update_queue.
-3. Wire the Resume State into the Queue and Worker
-The UI needs to pass the resume information to the backend, and the backend needs to use it.
-
-Update Queue Logic (queue.py and switchboard_queue.py):
-
-The add_or_update_task_in_queue function must be modified to accept resume_latent_path as an input.
-The switchboard must be updated to pass the RESUME_LATENT_PATH_STATE component as an input to this function.
-When a task is created, if resume_latent_path is present, it must be added to the task's parameter dictionary.
-The add_task_outputs in the switchboard must include RESUME_LATENT_PATH_STATE so it can be cleared (gr.update(value=None)) after the task is added.
-Update Worker Logic (generation_core.py):
-
-At the beginning of the worker function, it must check if the resume_latent_path parameter is valid.
-If it is, instead of initializing history_latents as an empty tensor, it must load the tensor from the file using torch.load().
-It should then perform an initial VAE decode on the loaded latents to populate history_pixels for seamless blending on the first new segment.
-4. Finalize the UI Feedback Loop
-The UI needs to react to the new "paused" event from the agent.
-
-Update the UI Listener (queue_processing.py):
-
-The process_task_queue_and_listen generator loop needs a new elif flag == "paused": condition.
-When this event is received, it should yield an update to the hidden RESUME_DOWNLOADER_UI component, setting its value to the path of the .goan_resume file.
-Update the Switchboard (switchboard_queue.py):
-
-The process_q_outputs list must be updated to include components[K.RESUME_DOWNLOADER_UI] as its first output, so it can receive the update from the listener.
-A .then() call with a JavaScript function (js="() => { ... }) must be added to the PROCESS_QUEUE_BUTTON's click chain to programmatically click the hidden download link, triggering the browser download.
-5. Refactor Legacy "Abort" Terminology
-Replace all uses of "abort" (e.g., variable names, log messages, function names like _signal_abort_to_ui) with "pause" or "paused" where the intent is to support resumable interruption.
-Ensure worker() and agent logic use "paused_with_state" for user-initiated, resumable interruptions.
-Update UI and queue status labels to reflect "Paused" instead of "Aborted".
-Remove or clarify any remaining references to "abort" that refer to non-resumable cancellation, if such a state is not needed.
-Completing these five areas will result in a fully functional, robust, and user-friendly pause and resume system that matches the architecture described in the design documents.
 ---
+
+## 2. Implementation - Backend
+
+### `src/core/checkpointing.py` (New File)
+
+A new module will encapsulate all logic for saving and loading checkpoints transactionally.
+
+```python
+import os
+import torch
+import json
+import zipfile
+import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
+
+RESUME_STATE_FILENAME = "resume_state.json"
+LATENTS_FILENAME = "history_latents.pt"
+SOURCE_IMAGE_FILENAME = "source_image.png"
+
+def save_checkpoint(job_id, segment_number, history_latents, source_image_np, params_to_save, output_folder):
+    """Saves the current generation state to a transactional checkpoint file."""
+    checkpoint_filename = f"{job_id}_seg_{segment_number}.goan_resume"
+    final_checkpoint_path = os.path.join(output_folder, checkpoint_filename)
+    
+    temp_fd, temp_path = tempfile.mkstemp(dir=output_folder, suffix=".tmp")
+    os.close(temp_fd)
+
+    try:
+        resume_state = {
+            "next_segment_to_process": segment_number + 1,
+            "params": params_to_save
+        }
+
+        with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(RESUME_STATE_FILENAME, json.dumps(resume_state, indent=4))
+            
+            with zf.open(LATENTS_FILENAME, 'w') as f:
+                torch.save(history_latents.cpu(), f)
+
+            img = Image.fromarray(source_image_np)
+            with io.BytesIO() as buf:
+                img.save(buf, format='PNG')
+                zf.writestr(SOURCE_IMAGE_FILENAME, buf.getvalue())
+
+        os.replace(temp_path, final_checkpoint_path)
+        logger.info(f"Checkpoint for job '{job_id}' saved successfully.")
+        return final_checkpoint_path
+    except Exception as e:
+        logger.error(f"Failed to save checkpoint for job '{job_id}': {e}", exc_info=True)
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return None
+
+def load_checkpoint(checkpoint_path):
+    """Loads the generation state from a checkpoint file."""
+    try:
+        with zipfile.ZipFile(checkpoint_path, 'r') as zf:
+            with zf.open(RESUME_STATE_FILENAME, 'r') as f:
+                resume_state = json.load(f)
+            
+            with zf.open(LATENTS_FILENAME, 'r') as f:
+                history_latents = torch.load(f, map_location="cpu")
+
+            with zf.open(SOURCE_IMAGE_FILENAME, 'r') as img_file:
+                source_image_pil = Image.open(io.BytesIO(img_file.read())).convert("RGBA")
+                source_image_np = np.array(source_image_pil)
+
+        return resume_state, history_latents, source_image_np
+    except Exception as e:
+        logger.error(f"Failed to load checkpoint from '{checkpoint_path}': {e}", exc_info=True)
+        return None, None, None
+
+def delete_checkpoint(checkpoint_path):
+    """Deletes a checkpoint file upon successful completion of a task."""
+    if checkpoint_path and os.path.exists(checkpoint_path):
+        try:
+            os.remove(checkpoint_path)
+            logger.info(f"Cleaned up checkpoint file: {checkpoint_path}")
+        except OSError as e:
+            logger.warning(f"Failed to delete checkpoint file '{checkpoint_path}': {e}")
+```
+
+### `src/core/generation_core.py` (Modifications)
+
+The `worker` will be modified to accept a `resume_latent_path`. If provided, it will call `checkpointing.load_checkpoint` to initialize its state (`history_latents`, `start_segment`) and then begin the generation loop from the correct segment. After each successful segment, it will call `checkpointing.save_checkpoint`.
+
+---
+
+## 3. Implementation - Frontend
+
+### `src/ui/queue.py` (Modifications)
+
+A new handler, `add_resumable_task_from_zip`, will be created. When a `.goan_resume` file is dropped, this handler will:
+1. Call `checkpointing.load_checkpoint` to extract the parameters and original source image.
+2. Add a new task to the queue with these parameters.
+3. Critically, it will add a `resume_latent_path` key to the task's parameters, pointing to the `.goan_resume` file itself. This tells the worker where to load the latent history from.
+
+### `src/ui/workspace.py` & Switchboards (Modifications)
+
+The main file drop handler (`handle_file_drop`) will be updated to detect `.goan_resume` files and delegate them to the new `add_resumable_task_from_zip` handler in `queue.py`.
