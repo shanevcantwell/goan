@@ -8,7 +8,6 @@ from PIL import Image
 import logging
 from PIL.PngImagePlugin import PngInfo
 
-# Local application imports
 from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
 from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop
 from diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
@@ -16,9 +15,7 @@ from diffusers_helper.memory import unload_complete_models, load_model_as_comple
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
-from core import model_loader # Import model_loader
-from ui import metadata as metadata_manager
-# Import shared_state to access the canonical parameter lists
+from core import model_loader 
 from ui import shared_state as shared_state_module
 from core import generation_utils
 from .generation_utils import generate_roll_off_schedule
@@ -29,7 +26,6 @@ logger = logging.getLogger(__name__)
 def worker(
     # --- Task I/O & Identity ---
     task_id,
-    resume_latent_path,
     input_image,
     output_folder,
     output_queue_ref,
@@ -50,8 +46,6 @@ def worker(
     preview_specified_segments,
     # --- Environment & Debug Parameters ---
     fps,
-    auto_resume_frequency,
-    auto_resume_retention,
     latent_window_size,
     gpu_memory_preservation,
     use_teacache,
@@ -130,17 +124,6 @@ def worker(
         # Select only the creative parameters for saving in metadata and resume files.
         # This uses the canonical list from shared_state, ensuring consistency.
         params_to_save = {key: all_worker_params[key] for key in shared_state_module.CREATIVE_PARAM_KEYS if key in all_worker_params}
-        metadata_obj = PngInfo()
-        metadata_obj.add_text("parameters", json.dumps(params_to_save))
-        initial_image_with_params_path = os.path.join(
-            outputs_folder, f"{job_id}_initial_image_with_params.png"
-        )
-        try:
-            Image.fromarray(input_image_np).save(
-                initial_image_with_params_path, pnginfo=metadata_obj
-            )
-        except Exception as e_png:
-            logger.warning(f"Task {task_id}: Failed to save initial image with parameters: {e_png}")
 
         if not high_vram:
             unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
@@ -481,7 +464,7 @@ def worker(
     except (InterruptedError, KeyboardInterrupt) as e:
         logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
         # Send the latent state for pause/resume
-        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause)))
+        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_abort, graceful_pause_preview_path)))
         success = False
         final_output_filename = graceful_pause_preview_path
     except Exception as e:
