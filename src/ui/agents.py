@@ -223,5 +223,12 @@ class ProcessingAgent(threading.Thread):
             logger.info("All LoRAs reverted. Processing agent is now idle.")
             self.is_processing = False
             queue_manager_instance.set_processing(False)
+            # --- FIX: Clear all state flags on exit ---
+            # This ensures the UI is not left in a "stuck" state (e.g., "Stopping...")
+            # regardless of how the processing loop terminates (finish, stop, crash).
             shared_state_module.shared_state_instance.interrupt_flag.clear()
+            shared_state_module.shared_state_instance.stop_requested_flag.clear()
+            shared_state_module.shared_state_instance.preview_request_flag.clear()
+            shared_state_module.shared_state_instance.pause_request_flag.clear()
+            logger.info("All state flags cleared.")
             ui_update_queue.put(("queue_finished", None))

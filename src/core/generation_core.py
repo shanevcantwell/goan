@@ -95,6 +95,7 @@ def worker(
     )
 
     graceful_abort_preview_path = None
+    history_latents_for_pause = None  # Initialize for graceful pause/abort handling
     # Ensure transformer is loaded before accessing its properties
     transformer = model_loader.get_transformer_model()
     original_fp32_setting = transformer.high_quality_fp32_output_for_inference # Store original setting
@@ -106,10 +107,6 @@ def worker(
         logger.info("Legacy GPU detected: Forcing FP32 transformer output for stability, overriding UI setting.")
 
     transformer.high_quality_fp32_output_for_inference = final_use_fp32
-
-    # Initialize history_latents_for_abort here to ensure it's always defined
-    # It will be overwritten within the loop if generation proceeds
-    history_latents_for_abort = None
 
     try:
         if not isinstance(input_image, np.ndarray):
@@ -452,8 +449,11 @@ def worker(
                 :, :, :total_generated_latent_frames, :, :
             ]
 
+            # Prepare the latents for decoding by moving to the correct device and dtype.
+            latents_for_decode = real_history_latents.to(device=vae.device, dtype=vae.dtype)
+
             if history_pixels is None:
-                history_pixels = vae_decode(real_history_latents, vae).cpu()
+                history_pixels = vae_decode(latents_for_decode, vae).cpu()
             else:
                 section_latent_frames = (
                     (latent_window_size * 2 + 1)
@@ -461,13 +461,14 @@ def worker(
                     else (latent_window_size * 2)
                 )
                 overlapped_frames = latent_window_size * 4 - 3
-                current_pixels = vae_decode(
-                    real_history_latents[:, :, :section_latent_frames], vae
-                ).cpu()
+                # Also prepare the slice for this branch of the logic.
+                current_latents_for_decode = latents_for_decode[:, :, :section_latent_frames]
+                current_pixels = vae_decode(current_latents_for_decode, vae).cpu()
                 history_pixels = soft_append_bcthw(
                     current_pixels, history_pixels, overlapped_frames
                 )
 
+            # Unload the VAE again to free up memory for the next segment's transformer pass.
             if not high_vram:
                 unload_complete_models(vae)
 
