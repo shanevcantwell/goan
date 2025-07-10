@@ -133,6 +133,18 @@ class QueueManager:
             self.state["queue"] = new_queue
             self.state["next_id"] = max(next_id, self.state.get("next_id", 1))
 
+    def append_tasks_from_list(self, tasks_to_append: list):
+        """Appends a list of task dictionaries to the current queue, re-assigning IDs."""
+        with self.queue_lock:
+            for task in tasks_to_append:
+                # Create a copy to avoid modifying the list that was passed in.
+                new_task = task.copy()
+                # Assign a new, unique ID and reset the status.
+                new_task['id'] = self.state["next_id"]
+                new_task['status'] = 'pending'
+                self.state["queue"].append(new_task)
+                self.state["next_id"] += 1
+
     def get_and_start_next_task(self):
         """
         Finds the first pending task at the top of the queue, marks it as 'processing',

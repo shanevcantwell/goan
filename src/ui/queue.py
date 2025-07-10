@@ -39,7 +39,9 @@ def autosave_queue_on_exit_action():
             for task in queue:
                 params_copy = task['params'].copy()
                 input_image_np = params_copy.pop('input_image', None)
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": "pending"}
+                # Save the actual status of the task to preserve the state of the queue at the time of saving.
+                # The status will be reset to 'pending' on load.
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
                 if input_image_np is not None:
                     img_filename = f"task_{task['id']}_input.png"
                     manifest_entry['image_ref'] = img_filename
@@ -99,6 +101,44 @@ def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
         updates[1] = queue_helpers.update_queue_df_display() # Index 1 is the queue dataframe
         return updates
     
+def add_resumable_task_from_zip(filepath: str):
+    """
+    Loads a .goan_resume file, extracts its contents, and adds a new task
+    to the queue that is ready to be resumed by the worker.
+    """
+    logger.info(f"Attempting to load resumable task from: {filepath}")
+    if not filepath or not os.path.exists(filepath):
+        gr.Warning("Resume file not found.")
+        return [gr.update()] * 8 # Return no-op for image drop outputs
+
+    try:
+        # Load the parameters from the checkpoint's internal JSON
+        resume_state, _ = checkpointing.load_checkpoint(filepath)
+        if not resume_state or "params" not in resume_state:
+            raise ValueError("Invalid or missing resume state in checkpoint.")
+        
+        params_for_task = resume_state["params"]
+        # CRITICAL: Add the path to the resume file itself to the parameters,
+        # so the worker knows which file to load its latent history from.
+        params_for_task['resume_latent_path'] = filepath
+
+        # Extract the original source image from the zip archive
+        with zipfile.ZipFile(filepath, 'r') as zf:
+            with zf.open('source_image.png') as img_file:
+                source_image_pil = Image.open(io.BytesIO(img_file.read())).convert("RGBA")
+                source_image_np = np.array(source_image_pil)
+
+        # Add the fully formed task to the queue
+        queue_manager_instance.add_task(params_for_task, source_image_np)
+        gr.Info(f"Resumable task from '{os.path.basename(filepath)}' added to queue.")
+
+        # Return updates to clear the file input and update the queue display
+        return gr.update(value=None), queue_helpers.update_queue_df_display()
+    except Exception as e:
+        gr.Warning(f"Error loading resume file: {e}")
+        logger.error(f"Failed to process resume file '{filepath}': {e}", exc_info=True)
+        return gr.update(), gr.update()
+
 def cancel_edit_mode_action():
     """Resets the UI to its default state and exits edit mode."""
     queue_manager_instance.set_editing_task(None)
@@ -164,10 +204,9 @@ def handle_queue_action_on_select(evt: gr.SelectData, *args):
         queue_manager_instance.move_task('down', row_index)
     elif action == "cancel":
         if is_processing:
-            # Corrected UI message: The task is stopped, not removed.
-            # The backend will reset its status to 'pending'.
-            gr.Info(f"Requesting stop for currently processing task {queue[0]['id']}...")
-            agents.ProcessingAgent().send({"type": "stop"})
+            # The backend will reset the task's status to 'pending'.
+            gr.Info(f"Requesting cancellation for currently processing task {task_id}...")
+            agents.ProcessingAgent().send({"type": "cancel_task"})
             # The agent will send UI updates when the task is stopped.
             return [gr.update()] * num_outputs
         else:
@@ -227,9 +266,9 @@ def save_queue_to_zip():
             for task in queue:
                 params_copy = task['params'].copy()
                 input_image_np = params_copy.pop('input_image', None)
-                # When saving, all tasks, including the one currently processing,
-                # should be marked as 'pending' so they are ready to be run when the queue is loaded.
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": "pending"}
+                # Save the actual status of the task. This makes the saved file a true snapshot
+                # of the queue's state. The status will be reset to 'pending' upon loading.
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
                 if input_image_np is not None:
                     img_filename = f"task_{task['id']}_input.png"
                     manifest_entry['image_ref'] = img_filename
@@ -260,7 +299,12 @@ def load_queue_from_zip(zip_file_or_path):
 
     new_queue, next_id = queue_helpers.reconstruct_queue_from_zip(filepath)
     if new_queue:
+        # The responsibility of resetting task status is on the load side.
+        # This ensures that any loaded queue is immediately ready for processing, regardless
+        # of the statuses saved in the file.
+        for task in new_queue:
+            task['status'] = 'pending'
         queue_manager_instance.load_queue(new_queue, next_id)
-        gr.Info(f"Successfully loaded {len(new_queue)} tasks from {os.path.basename(filepath)}.")
+        gr.Info(f"Successfully loaded {len(new_queue)} tasks from {os.path.basename(filepath)}. All tasks set to 'Pending'.")
 
     return gr.update(), queue_helpers.update_queue_df_display()
