@@ -29,9 +29,7 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
             components[K.LATENT_WINDOW_SIZE_SLIDER],
             components[K.FPS_SLIDER]
         ]
-        # --- START OF MODIFICATION ---
-        # Apply the same lambda pattern here for ui_update_total_segments.
-        # It expects 3 arguments, so the lambda needs to consume 4 (implicit + 3 explicit).
+        
         event.then(
             fn=lambda event_output_payload, video_length, latent_window_size, fps: \
                 event_handlers.ui_update_total_segments(video_length, latent_window_size, fps),
@@ -43,4 +41,3 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
             ],
             outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
         )
-        # --- END OF MODIFICATION ---
