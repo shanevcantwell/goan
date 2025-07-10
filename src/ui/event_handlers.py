@@ -192,7 +192,7 @@ def update_button_states(app_state, input_image_pil, queue_df_data):
             K.ADD_TASK_BUTTON: gr.update(interactive=s['has_image'], variant="primary" if s['has_image'] else "secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),            
-            K.SAVE_QUEUE_BUTTON: gr.update(interactive=False, variant="secondary"),
+            K.SAVE_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'], variant="primary"),
             
         }},
         # Default rule for idle state.
