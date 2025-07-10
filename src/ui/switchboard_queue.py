@@ -64,7 +64,7 @@ def wire_events(components: dict):
     ))
 
     (components[K.CREATE_PREVIEW_BUTTON].click(
-        fn=queue_processing.request_preview_generation_action,
+        fn=event_handlers.toggle_manual_preview_action,
         inputs=None,
         # Target the button itself so it can be disabled immediately.
         outputs=[components[K.CREATE_PREVIEW_BUTTON]]
