@@ -5,6 +5,7 @@ repo/
 loras/
 .scripts/
 *-workspace
+*.attrs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
