@@ -19,14 +19,14 @@ def process_task_queue_and_listen(*lora_control_values):
     if queue_manager_instance.get_state().get("processing", False):
         # Set the flag for immediate UI feedback via update_button_states
         shared_state_module.shared_state_instance.stop_requested_flag.set()
-        agent.send({"type": "stop"})
-        gr.Info("Stop requested. The current task will be stopped.")
+        agent.send({"type": "stop_queue"})
+        gr.Info("Stop requested. The queue will halt after the current task is stopped.")
         # Return minimal updates. The .then() call in the switchboard will call
         # update_button_states, which will see the flag and update the UI correctly.
         return [gr.update()] * 9
 
     # If not processing, this is a "start" request.
-    # --- FIX: Clear all state flags at the beginning of a new run ---
+    # Clear all state flags at the beginning of a new run.
     # This prevents a "stuck" stop or pause signal from a previous,
     # potentially interrupted, run from immediately terminating the new one.
     shared_state_module.shared_state_instance.interrupt_flag.clear()

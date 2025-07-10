@@ -105,9 +105,6 @@ def wire_events(components: dict):
     (components[K.QUEUE_DF].select(
         fn=queue_actions.handle_queue_action_on_select, inputs=task_defining_ui_inputs, outputs=add_task_outputs
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
-        outputs=button_state_outputs
-    ).then(
         fn=event_handlers.ui_update_total_segments,
         inputs=[components[K.VIDEO_LENGTH_SLIDER], components[K.LATENT_WINDOW_SIZE_SLIDER], components[K.FPS_SLIDER]],
         outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
