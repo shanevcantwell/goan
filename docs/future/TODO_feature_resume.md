@@ -120,6 +120,26 @@ A new handler, `add_resumable_task_from_zip`, will be created. When a `.goan_res
 2. Add a new task to the queue with these parameters.
 3. Critically, it will add a `resume_latent_path` key to the task's parameters, pointing to the `.goan_resume` file itself. This tells the worker where to load the latent history from.
 
+---
+
+## 4. Relationship to UI Session Restore
+
+It is important to distinguish between **Task Resumption** (the focus of this document) and **UI Session Restore**.
+
+*   **Task Resumption**: Recovers the state of a *backend worker process* that was actively generating a video. It involves saving and loading complex data like PyTorch latent tensors.
+
+*   **UI Session Restore**: Recovers the state of the *frontend UI controls and task queue* after an accidental browser refresh, closure, or navigation away from the page (the "backspace-key-disaster"). This is the primary defense against losing your configured "recipes" and queue setup.
+
+The application already has a robust mechanism for UI Session Restore, which complements the task checkpointing system:
+
+1.  **On Exit/Unload**: The Gradio `unload` event triggers two key functions:
+    *   `workspace.save_ui_and_image_for_refresh`: Saves all current UI control values and the input image to temporary files (`goan_unload_save.json`, `goan_refresh_image.png`).
+    *   `queue.autosave_queue_on_exit_action`: Saves the entire task queue, including all parameters and task-specific images, to a temporary zip file.
+
+2.  **On Load**: When the application is started or the page is reloaded, the `block.load` event in `switchboard_startup.py` orchestrates the loading of these temporary files, restoring the UI and queue to their last known state.
+
+This existing system ensures that even if a user accidentally navigates away, their entire workspace configuration is preserved and automatically restored, preventing the loss of work before a generation has even started. The plan to move to *periodic* autosaving (as noted in the main `TODO.md`) will make this defense even stronger.
+
 ### `src/ui/workspace.py` & Switchboards (Modifications)
 
 The main file drop handler (`handle_file_drop`) will be updated to detect `.goan_resume` files and delegate them to the new `add_resumable_task_from_zip` handler in `queue.py`.
