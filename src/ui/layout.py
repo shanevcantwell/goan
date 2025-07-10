@@ -4,7 +4,6 @@
 import gradio as gr
 from gradio_modal import Modal
 
-# Import ComponentKey enum and workspace manager
 from .enums import ComponentKey as K
 from . import workspace as workspace_manager
 from . import queue as queue_manager
@@ -16,46 +15,46 @@ def create_ui():
     """
 
     css = """
-    #queue_df { font-size: 0.85rem; }
-    #queue_df th, #queue_df td { text-align: center; }
+    #queue_df { font-size: 0.9rem; }
 
     /* --- Task Queue Column Styling --- */
-    /* 1. Default for all headers/cells: center text and align vertically. */
+    /* Use a fixed table layout to enforce column widths accurately. */
+    #queue_df table {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    /* Default for all headers/cells: vertical alignment and basic padding. */
     #queue_df th, #queue_df td {
-        text-align: center;
         vertical-align: middle;
+        padding: 4px;
     }
 
-    /* 2. 'Task Queue' title. */
-    .queue-title h2 {
-        text-align: left;
-        vertical-align: botton;
-        padding-left: 5px;
-    }
-
-    /* 3. Set a fixed width for the 5 control button columns. */
+    /* Control Columns (1-5): Fixed width, centered. */
     #queue_df th:nth-child(-n+5), #queue_df td:nth-child(-n+5) {
-        width: 3%;
+        width: 2.5rem; /* Scalable unit for zoom */
+        text-align: center;
     }
 
-    /* 4. Keep the 'Status' column (6) centered (covered by the default rule). */
+    /* Status Column (6): Fixed width, left-aligned, allows wrapping. */
+    #queue_df th:nth-child(6), #queue_df td:nth-child(6) {
+        width: 8rem; /* Wide enough for "⏳ Processing" */
+        text-align: left;
+        white-space: normal; /* Allow text to wrap */
+    }
 
-    /* 5. Left-align the 'Prompt' column (7) and manage its width. */
+    /* Prompt Column (7): Flexible width, left-aligned, truncates with ellipsis. */
     #queue_df th:nth-child(7), #queue_df td:nth-child(7) {
         text-align: left;
-        width: 60%;
-        text-align: left;
-        padding-left: 8px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 0;
     }
 
-    /* 6. Make the 'Length' (9) and 'ID' (10) columns narrower. */
-    #queue_df th:nth-child(9), #queue_df td:nth-child(9) { width: 3%; }
-    #queue_df th:nth-child(10), #queue_df td:nth-child(10) { width: 3%; }
-
+    /* Image (8), Length (9), ID (10) Columns: Fixed width, centered. */
+    #queue_df th:nth-child(8), #queue_df td:nth-child(8) { width: 4rem; text-align: center; }
+    #queue_df th:nth-child(9), #queue_df td:nth-child(9) { width: 4rem; text-align: center; }
+    #queue_df th:nth-child(10), #queue_df td:nth-child(10) { width: 3rem; text-align: center; }
 
     .gradio-container { max-width: 95% !important; margin: auto !important; }
     :root {
@@ -178,53 +177,45 @@ def create_ui():
             with gr.Column(scale=1):
                 components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Image or .goan_resume File Here", file_types=["image", ".zip", ".goan_resume"], elem_id="image_file_input_ui")
                 components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
-                with gr.Row():
-                    components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
-                with gr.Row():
-                    components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary")
-                with gr.Row():
-                    components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Clear Image", variant="secondary", interactive=False, elem_id="clear_image_button")
-                with gr.Row():
-                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image", variant="secondary", interactive=False, elem_id="download_image_button")
+                components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
+                components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
+                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download 'Dataful' Image", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
             with gr.Column(scale=2, min_width=600):
                 components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=10, max_lines=10)
                 components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=4)
-        # with gr.Row():
-        #     with gr.Column():
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
             components[K.QUEUE_DOWNLOADER] = gr.File(visible=False, elem_id="queue_downloader_hidden_file")
         with gr.Row():
             with gr.Column(scale=1):
+                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
             with gr.Column(scale=2):
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
-        with gr.Row():
-                # gr.Markdown("## Task Queue", elem_classes=["queue-title"])
-                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
-                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
-        with gr.Row():
-            components[K.QUEUE_DF] = gr.DataFrame(
-                headers=["↑", "↓", "⏸️", "✎", "✖", "Status", "Prompt", "Image", "Length", "ID"],
-                datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
-                col_count=(10, "dynamic"),
-                interactive=False,
-                elem_id="queue_df"
-            )
+
+        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
+
+        components[K.QUEUE_DF] = gr.DataFrame(
+            headers=["↑", "↓", "⏸️", "✎", "✖", "Status", "Prompt", "Image", "Length", "ID"],
+            datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
+            col_count=(10, "dynamic"),
+            interactive=True,
+            elem_id="queue_df"
+        )
         with gr.Row():
             components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", size="sm", interactive=False)
             components[K.LOAD_QUEUE_BUTTON] = gr.UploadButton("Load Queue", file_types=[".zip"], size="sm", variant="primary")
             components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", size="sm", variant="stop", interactive=False)
 
-        with gr.Row(equal_height=False):
-            components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
-                    label="Live Latent Preview",
-                    interactive=False,
-                    visible=False, # Starts hidden, made visible by the agent during processing.
-                    show_download_button=False,
-                    elem_id="current_task_preview_image_ui"
-                )
+        components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
+            label="Live Latent Preview",
+            interactive=False,
+            visible=False, # Starts hidden, made visible by the agent during processing.
+            show_download_button=False,
+            elem_id="current_task_preview_image_ui"
+        )
         with gr.Row():
             with gr.Column(scale=1):
                 with gr.Accordion("Advanced Settings", open=False):
@@ -249,7 +240,11 @@ def create_ui():
 
                 with gr.Accordion("LoRA Settings", open=False, visible=True) as lora_accordion:
                     components[K.LORA_ACCORDION] = lora_accordion
-                    gr.Markdown("🧪 Experimental LoRA support. Upload a `.safetensors` file. Applied before generation.")
+                    gr.Markdown(
+                        "🧪 **Experimental LoRA Support**\n\n"
+                        "Upload a `.safetensors` file to apply it before generation. "
+                        "Note that compatibility with 'wild' LoRAs can vary, and some may not affect the output as expected."
+                    )
                     components[K.LORA_UPLOAD_BUTTON] = gr.UploadButton("Upload LoRA", file_types=[".safetensors"], file_count="single", size="sm")
                     with gr.Row(visible=False, variant="panel") as lora_row_0_ctx:
                         components[K.LORA_ROW] = lora_row_0_ctx
