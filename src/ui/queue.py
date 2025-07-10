@@ -155,7 +155,7 @@ def cancel_edit_mode_action():
     )
     return final_updates
 
-def handle_queue_action_on_select(evt: gr.SelectData, *args):
+def handle_queue_action_on_select(evt: gr.SelectData):
     """
     Handles user clicks on action icons within the queue DataFrame.
     This version has the corrected signature to properly receive the event data as a positional argument.

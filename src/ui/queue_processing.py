@@ -23,7 +23,7 @@ def process_task_queue_and_listen(*lora_control_values):
         gr.Info("Stop requested. The queue will halt after the current task is stopped.")
         # Return minimal updates. The .then() call in the switchboard will call
         # update_button_states, which will see the flag and update the UI correctly.
-        return [gr.update()] * 9
+        return [gr.update()] * 8
 
     # If not processing, this is a "start" request.
     # Clear all state flags at the beginning of a new run.
@@ -31,7 +31,6 @@ def process_task_queue_and_listen(*lora_control_values):
     # potentially interrupted, run from immediately terminating the new one.
     shared_state_module.shared_state_instance.interrupt_flag.clear()
     shared_state_module.shared_state_instance.stop_requested_flag.clear()
-    shared_state_module.shared_state_instance.preview_request_flag.clear()
     shared_state_module.shared_state_instance.pause_request_flag.clear()
     logger.info("State flags cleared for new queue run.")
     agent.send({
@@ -49,24 +48,23 @@ def process_task_queue_and_listen(*lora_control_values):
                 # This is the first signal from the agent that it has started.
                 # Update the UI to the "processing" state.
                 yield (  # The first output (APP_STATE) is gr.update() as we don't modify it here.
-                    gr.update(), gr.update(), gr.update(), gr.update(),
+                    gr.update(), gr.update(), gr.update(), gr.update(visible=True),
                     gr.update(value="Queue processing started..."),  # Progress description
                     gr.update(value=None, visible=True),  # Progress bar
                     gr.update(interactive=True, value="⏹️ Stop Processing", variant="stop"),  # PROCESS_QUEUE_BUTTON
-                    gr.update(interactive=True),  # CREATE_PREVIEW_BUTTON
                     gr.update(interactive=False)  # CLEAR_QUEUE_BUTTON
                 )
             elif flag == "progress":
                 # Unpack data: task_id, preview_np, desc, html
                 _, preview_np, desc, html = data  # type: ignore
-                yield (gr.update(), gr.update(), gr.update(), gr.update(value=preview_np), desc, html, gr.update(), gr.update(), gr.update())
+                yield (gr.update(), gr.update(), gr.update(), gr.update(value=preview_np), desc, html, gr.update(), gr.update())
             elif flag == "file":
                 # Unpack data: task_id, new_video_path, _
                 _, new_video_path, _ = data  # type: ignore
-                yield (gr.update(), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
+                yield (gr.update(), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
             elif flag == "task_starting":
                 task = data  # type: ignore
-                yield (gr.update(), queue_helpers.update_queue_df_display(), gr.update(), gr.update(), f"Processing Task {task['id']}...", gr.update(), gr.update(), gr.update(), gr.update())
+                yield (gr.update(), queue_helpers.update_queue_df_display(), gr.update(), gr.update(), f"Processing Task {task['id']}...", gr.update(), gr.update(), gr.update())
             elif flag == "task_finished":
                 status = data['status']
                 final_message = f"Task {data['id']} {status}."
@@ -80,7 +78,6 @@ def process_task_queue_and_listen(*lora_control_values):
                     gr.update(),
                     final_message, # Progress description
                     gr.update(value=None, visible=False), # Clear progress bar
-                    gr.update(),
                     gr.update(),
                     gr.update()
                 )
@@ -106,15 +103,9 @@ def process_task_queue_and_listen(*lora_control_values):
         gr.update(),
         queue_helpers.update_queue_df_display(),
         gr.update(), # LAST_FINISHED_VIDEO
-        gr.update(value=None, visible=False), # CURRENT_TASK_PREVIEW_IMAGE
+        gr.update(value=None), # CURRENT_TASK_PREVIEW_IMAGE
         gr.update(value=""), # CURRENT_TASK_PROGRESS_DESCRIPTION
         gr.update(value=None, visible=False), # CURRENT_TASK_PROGRESS_BAR
         gr.update(), # PROCESS_QUEUE_BUTTON
-        gr.update(), # CREATE_PREVIEW_BUTTON
         gr.update()  # CLEAR_QUEUE_BUTTON
     )
-
-def request_preview_generation_action():
-    """Triggers a preview generation request to the ProcessingAgent."""
-    ProcessingAgent().send({"type": "preview"})
-    return gr.update(interactive=False, variant="secondary")

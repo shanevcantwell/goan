@@ -70,8 +70,6 @@ class ProcessingAgent(threading.Thread):
                 self._handle_cancel_task()
             elif message.get("type") == "pause":
                 self._handle_pause()
-            elif message.get("type") == "preview":
-                self._handle_preview()
 
 
     def _handle_start(self, message):
@@ -117,17 +115,6 @@ class ProcessingAgent(threading.Thread):
         logger.info("Pause request received by agent. Setting flags.")
         shared_state_module.shared_state_instance.pause_request_flag.set()
         shared_state_module.shared_state_instance.interrupt_flag.set()
-
-    def _handle_preview(self):
-        """Handles a request to generate a preview for the current segment."""
-        if not self.is_processing:
-            ui_update_queue.put(("info", "Cannot generate a preview when not processing."))
-            return
-
-        logger.info("Preview request received by agent. Setting flag.")
-        shared_state_module.shared_state_instance.preview_request_flag.set()
-        ui_update_queue.put(("info", "Preview requested. It will generate after the current sampling step."))
-
     def _processing_loop(self, start_message):
         lora_controls = start_message.get("lora_controls")
 
@@ -225,8 +212,7 @@ class ProcessingAgent(threading.Thread):
             self.is_processing = False
             queue_manager_instance.set_processing(False)
             shared_state_module.shared_state_instance.interrupt_flag.clear()
-            shared_state_module.shared_state_instance.stop_requested_flag.clear()
-            shared_state_module.shared_state_instance.preview_request_flag.clear()
+            shared_state_module.shared_state_instance.stop_requested_flag.clear()            
             shared_state_module.shared_state_instance.pause_request_flag.clear()
             logger.info("All state flags cleared.")
             ui_update_queue.put(("queue_finished", None))
