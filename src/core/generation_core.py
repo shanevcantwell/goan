@@ -95,7 +95,6 @@ def worker(
     )
 
     graceful_abort_preview_path = None
-    history_latents_for_pause = None  # Initialize for graceful pause/abort handling
     # Ensure transformer is loaded before accessing its properties
     transformer = model_loader.get_transformer_model()
     original_fp32_setting = transformer.high_quality_fp32_output_for_inference # Store original setting
@@ -107,6 +106,10 @@ def worker(
         logger.info("Legacy GPU detected: Forcing FP32 transformer output for stability, overriding UI setting.")
 
     transformer.high_quality_fp32_output_for_inference = final_use_fp32
+
+    # Initialize history_latents_for_abort here to ensure it's always defined
+    # It will be overwritten within the loop if generation proceeds
+    history_latents_for_abort = None 
 
     try:
         if not isinstance(input_image, np.ndarray):
@@ -139,6 +142,9 @@ def worker(
         except Exception as e_png:
             logger.warning(f"Task {task_id}: Failed to save initial image with parameters: {e_png}")
 
+        if not high_vram:
+            unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
+
         output_queue_ref.push(
             (
                 "progress",
@@ -151,10 +157,8 @@ def worker(
             )
         )
         if not high_vram:
-            # Both text encoders are now managed by DynamicSwap, so we just need to
-            # prepare their device attribute for the diffusers library functions.
             fake_diffusers_current_device(text_encoder, gpu)
-            fake_diffusers_current_device(text_encoder_2, gpu)
+            load_model_as_complete(text_encoder_2, target_device=gpu)
         llama_vec, clip_l_pooler = encode_prompt_conds(
             prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
         )
@@ -187,17 +191,9 @@ def worker(
                 ),
             )
         )
-        # --- Manual VAE Management for Low-VRAM Mode ---
-        # The VAE is not managed by the swapper, so we load/unload it manually.
         if not high_vram:
-            logger.info(f"Task {task_id}: Loading VAE to GPU for encoding...")
             load_model_as_complete(vae, target_device=gpu)
-
         start_latent = vae_encode(input_image_pt, vae)
-
-        if not high_vram:
-            unload_complete_models(vae)
-
         output_queue_ref.push(
             (
                 "progress",
@@ -209,6 +205,8 @@ def worker(
                 ),
             )
         )
+        if not high_vram:
+            load_model_as_complete(image_encoder, target_device=gpu)
         image_encoder_output = hf_clip_vision_encode(
             input_image_np, feature_extractor, image_encoder
         )
@@ -265,22 +263,6 @@ def worker(
             latent_padding_size = latent_padding * latent_window_size
             # Added for consistent 1-indexed segment number for loop segments
             current_loop_segment_number = latent_padding_iteration + 1
-
-            # --- Preview Scheduling Logic ---
-            # Determine if a preview is automatically scheduled for this segment based on user settings.
-            is_preview_scheduled_for_segment = (
-                latent_padding_iteration == 0  # Always for the first segment
-                or is_last_section  # Always for the last segment
-                or (
-                    parsed_segments_to_decode_set
-                    and current_loop_segment_number in parsed_segments_to_decode_set
-                )  # If specified in the CSV list
-                or (
-                    preview_frequency > 0 and (current_loop_segment_number % preview_frequency == 0)
-                )  # If it matches the periodic frequency
-            )
-            output_queue_ref.push(('segment_info', {'is_preview_scheduled': is_preview_scheduled_for_segment}))
-
             logger.info(f"Task {task_id}: Seg {current_loop_segment_number}/{total_latent_sections} (lp_val={latent_padding}), last_loop_seg={is_last_section}")
 
             indices = torch.arange(
@@ -310,17 +292,18 @@ def worker(
             ].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
+            if not high_vram:
+                unload_complete_models()
+                move_model_to_device_with_memory_preservation(
+                    transformer,
+                    target_device=gpu,
+                    preserved_memory_gb=gpu_memory_preservation,
+                )
             transformer.initialize_teacache(
                 enable_teacache=use_teacache, num_steps=steps
             )
 
             def callback_diffusion_step(d):
-                # Check the interrupt flag on every diffusion step for maximum responsiveness.
-                if shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                    # Raising an exception is the only way to break out of the sampler's inner loop.
-                    # The worker's main try/except block is designed to catch this.
-                    raise InterruptedError("Stop signal received during sampling.")
-
                 current_diffusion_step = d["i"] + 1
                 preview_latent = d["denoised"]
                 preview_img_np = vae_decode_fake(preview_latent)
@@ -362,8 +345,8 @@ def worker(
 
                 if variable_cfg_shape == 'Linear':
                     # Linear interpolation from start to end CFG.
-                    current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end - initial_gs_from_ui) * progress
-
+                    current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end_value_for_schedule - initial_gs_from_ui) * progress
+               
                 elif variable_cfg_shape == 'Roll-off':
                     # Roll-off logic adapted for per-segment scheduling.
                     roll_off_start_point = roll_off_start / 100.0
@@ -372,7 +355,7 @@ def worker(
                     else:
                         roll_off_progress = (progress - roll_off_start_point) / (1.0 - roll_off_start_point)
                         curved_progress = roll_off_progress ** roll_off_factor
-                        current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end - initial_gs_from_ui) * curved_progress
+                        current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end_value_for_schedule - initial_gs_from_ui) * curved_progress
 
             generated_latents = sample_hunyuan(
                 transformer=transformer,
@@ -417,15 +400,16 @@ def worker(
                     [start_latent.to(generated_latents), generated_latents], dim=2
                 )
 
-            # total_generated_latent_frames += int(generated_latents.shape[2])
-            # history_latents = torch.cat(
-            #     [generated_latents.to(history_latents), history_latents], dim=2
-            # )
+            total_generated_latent_frames += int(generated_latents.shape[2])
+            history_latents = torch.cat(
+                [generated_latents.to(history_latents), history_latents], dim=2
+            )
 
-            # if not high_vram:
-            #     offload_model_from_device_for_memory_preservation(
-            #         transformer, target_device=gpu, preserved_memory_gb=8
-            #     )
+            if not high_vram:
+                offload_model_from_device_for_memory_preservation(
+                    transformer, target_device=gpu, preserved_memory_gb=8
+                )
+                load_model_as_complete(vae, target_device=gpu)
 
             # Let the UI know that the expensive VAE decoding is happening
             output_queue_ref.push(
@@ -435,25 +419,19 @@ def worker(
                         task_id,
                         None,  # No image preview here
                         f"Segment {current_loop_segment_number}/{total_latent_sections}: Decoding frames...",
-                        make_progress_bar_html(100, "VAE Decode"),
+                        make_progress_bar_html(
+                            100, "VAE Decode"
+                        ),  # Progress bar is full from sampling
                     ),
                 )
             )
-
-            # --- Manual VAE Management for Low-VRAM Mode ---
-            if not high_vram:
-                logger.info(f"Task {task_id}: Loading VAE to GPU for decoding...")
-                load_model_as_complete(vae, target_device=gpu)
 
             real_history_latents = history_latents[
                 :, :, :total_generated_latent_frames, :, :
             ]
 
-            # Prepare the latents for decoding by moving to the correct device and dtype.
-            latents_for_decode = real_history_latents.to(device=vae.device, dtype=vae.dtype)
-
             if history_pixels is None:
-                history_pixels = vae_decode(latents_for_decode, vae).cpu()
+                history_pixels = vae_decode(real_history_latents, vae).cpu()
             else:
                 section_latent_frames = (
                     (latent_window_size * 2 + 1)
@@ -461,20 +439,18 @@ def worker(
                     else (latent_window_size * 2)
                 )
                 overlapped_frames = latent_window_size * 4 - 3
-                # Also prepare the slice for this branch of the logic.
-                current_latents_for_decode = latents_for_decode[:, :, :section_latent_frames]
-                current_pixels = vae_decode(current_latents_for_decode, vae).cpu()
+                current_pixels = vae_decode(
+                    real_history_latents[:, :, :section_latent_frames], vae
+                ).cpu()
                 history_pixels = soft_append_bcthw(
                     current_pixels, history_pixels, overlapped_frames
                 )
 
-            # Unload the VAE again to free up memory for the next segment's transformer pass.
             if not high_vram:
-                unload_complete_models(vae)
+                unload_complete_models()
 
             current_video_frame_count = history_pixels.shape[2]
 
-            is_manual_preview_request = shared_state_module.shared_state_instance.preview_request_flag.is_set()
             # --- Handle segment saving ---
             saved_file_path = generation_utils.handle_segment_saving(
                 latent_padding_iteration=latent_padding_iteration,
@@ -492,7 +468,6 @@ def worker(
                 fps=fps,
                 mp4_crf=mp4_crf,
                 force_standard_fps=force_standard_fps,
-                is_manual_request=is_manual_preview_request,
             )
             if saved_file_path:
                 final_output_filename = saved_file_path
@@ -504,18 +479,17 @@ def worker(
         success = True
 
     except (InterruptedError, KeyboardInterrupt) as e:
-        # This is the hook for the pause functionality.
-        logger.info(f"Worker task {task_id} caught interrupt signal: {e}")
-        # Check if we are pausing (and have state to save) or just stopping.
-        if shared_state_module.shared_state_instance.pause_request_flag.is_set() and history_latents_for_pause is not None:
-            output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_abort_preview_path)))
-        else:
-            output_queue_ref.push(('aborted', (task_id, None)))
+        logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
+        # Send the latent state for pause/resume
+        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause)))
         success = False
+        final_output_filename = graceful_pause_preview_path
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
         output_queue_ref.push(('error', (task_id, str(e))))
         success = False
     finally:
         transformer.high_quality_fp32_output_for_inference = original_fp32_setting
+        if not high_vram:
+            unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
         output_queue_ref.push(('end', (task_id, success, final_output_filename)))
