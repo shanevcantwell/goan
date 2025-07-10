@@ -66,7 +66,21 @@ def process_task_queue_and_listen(*lora_control_values):
             elif flag == "progress":
                 # Unpack data: task_id, preview_np, desc, html
                 _, preview_np, desc, html = data  # type: ignore
-                yield (gr.update(), gr.update(), gr.update(), gr.update(value=preview_np), desc, html, gr.update(), gr.update(), gr.update())
+
+                # FIX: Re-evaluate the preview button's state with every progress update.
+                # This ensures that after a manual preview request is consumed by the worker
+                # (and the flag is cleared), the button re-enables itself on the next update.
+                preview_requested = shared_state_module.shared_state_instance.preview_request_flag.is_set()
+                preview_button_update = gr.update(interactive=not preview_requested,
+                                                  variant="primary" if not preview_requested else "secondary")
+
+                yield (
+                    gr.update(),  # APP_STATE
+                    gr.update(),  # QUEUE_DF
+                    gr.update(),  # LAST_FINISHED_VIDEO
+                    gr.update(value=preview_np),  # CURRENT_TASK_PREVIEW_IMAGE
+                    desc, html, gr.update(), preview_button_update, gr.update()
+                )
             elif flag == "file":
                 # Unpack data: task_id, new_video_path, _
                 _, new_video_path, _ = data  # type: ignore
