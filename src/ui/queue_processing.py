@@ -21,23 +21,21 @@ def process_task_queue_and_listen(*lora_control_values):
         shared_state_module.shared_state_instance.stop_requested_flag.set()
         agent.send({"type": "stop_queue"})
         gr.Info("Stop requested. The queue will halt after the current task is stopped.")
-        # Return minimal updates. The .then() call in the switchboard will call
-        # update_button_states, which will see the flag and update the UI correctly.
-        return [gr.update()] * 9
-
-    # If not processing, this is a "start" request.
-    # Clear all state flags at the beginning of a new run.
-    # This prevents a "stuck" stop or pause signal from a previous,
-    # potentially interrupted, run from immediately terminating the new one.
-    shared_state_module.shared_state_instance.interrupt_flag.clear()
-    shared_state_module.shared_state_instance.stop_requested_flag.clear()
-    shared_state_module.shared_state_instance.preview_request_flag.clear()
-    shared_state_module.shared_state_instance.pause_request_flag.clear()
-    logger.info("State flags cleared for new queue run.")
-    agent.send({
-        "type": "start",
-        "lora_controls": lora_control_values
-    })
+        # Do not return. Fall through to the listener loop to catch feedback from the agent.
+    else:
+        # If not processing, this is a "start" request.
+        # Clear all state flags at the beginning of a new run.
+        # This prevents a "stuck" stop or pause signal from a previous,
+        # potentially interrupted, run from immediately terminating the new one.
+        shared_state_module.shared_state_instance.interrupt_flag.clear()
+        shared_state_module.shared_state_instance.stop_requested_flag.clear()
+        shared_state_module.shared_state_instance.preview_request_flag.clear()
+        shared_state_module.shared_state_instance.pause_request_flag.clear()
+        logger.info("State flags cleared for new queue run.")
+        agent.send({
+            "type": "start",
+            "lora_controls": lora_control_values
+        })
 
     # The listener loop. It doesn't manage state, just streams updates from the agent.
     while True:
@@ -45,7 +43,16 @@ def process_task_queue_and_listen(*lora_control_values):
             # Block until an update is available from the agent's UI queue.
             flag, data = ui_update_queue.get(timeout=1.0)
 
-            if flag == "processing_started":
+            if flag == "stopping_process":
+                # The agent has confirmed it received the stop request.
+                # Yield feedback to the user. The button states are handled by the
+                # .then() call in the switchboard.
+                yield (
+                    gr.update(), gr.update(), gr.update(), gr.update(),
+                    "Stop signal received. Waiting for current task to halt...",
+                    gr.update(), gr.update(), gr.update(), gr.update()
+                )
+            elif flag == "processing_started":
                 # This is the first signal from the agent that it has started.
                 # Update the UI to the "processing" state.
                 yield (  # The first output (APP_STATE) is gr.update() as we don't modify it here.
