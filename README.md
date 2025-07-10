@@ -11,9 +11,9 @@ Introducing goan, an enhanced user interface designed for creative professionals
 
 ## ✨ Core Principles & Advanced Features
 
-`goan` is built on principles that empower your creative workflow and hide complexity until you're ready for it:
+`goan` is built on principles that empower your creative workflow:
 
-*   **Never Re-Generate**: Your time is valuable. `goan` is designed to minimize wasted computation. Features like **task checkpointing and resumption** (currently the highest priority project) will allow you to pick up exactly where you left off, even after a crash or intentional pause.
+*   **Never Re-Generate**: Your time is valuable. `goan` is designed to minimize wasted computation. Features like **task checkpointing and resumption** (targeted for alpha 1) will allow you to pick up exactly where you left off, even after a crash or intentional pause.
 *   **Robust Session Management**: Your long-running jobs are safe. The entire task queue and UI state are persistently managed, ensuring resilience against browser disconnects or application restarts. Because nothing spoils a 4hr run like all your controls popping up [Error] boxes halfway through with no way to fully recover them.
 *   **Intuitive & Unthreatening UI**: Powerful features shouldn't require a manual. `goan` aims to hide the settings requiring more experience until you're ready to explore it, making it easy to pick up and use without extensive documentation.
 *   **Effortless "Recipe" Management**: Experiment freely without losing track of your settings.
@@ -29,13 +29,13 @@ This guide will walk you through your first video generation with `goan`. For in
 
 ### 1. The UI at a Glance
 
-The interface is organized into a few key areas to streamline your workflow. [images coming soon]
+The interface is organized into a few key areas to streamline your workflow. [updated images quickly following the release of alpha 0]
 
 *   **Left Panel:** This is your starting point. Drop your input image here, add it to the queue, and start or stop the generation process.
 *   
 ![goan_ui_startup_primary_controls_left_side_all_active](https://github.com/user-attachments/assets/acdfb830-4aa4-40bc-8682-edd00c6773ee)
 
-*   **Right Panel:** This is where you get creative. Write your `Prompt` and `Negative Prompt`, and adjust core settings like `Video Length` and `Seed`.
+*   **Right Panel:** This is where you get creative. Write your `Prompt` and `Negative Prompt`, and adjust core settings like `Video Length`.
 
 ![goan_ui_startup_primary_controls_right_side_empty](https://github.com/user-attachments/assets/7bf7f22f-ecba-4c1c-9e22-1b632e154163)
 
@@ -132,8 +132,6 @@ Once the installation is complete, you can launch the application using the gene
 The UI will open automatically in your web browser.
 ![goan_ui_advanced_settings](https://github.com/user-attachments/assets/782f4124-60fc-46ca-90f3-7107ef9dbf66)
 ![goan_ui_debug_settings](https://github.com/user-attachments/assets/43f27ff4-3ec6-49c5-b0d2-456e66497a03)
-
-Lora support is also implemented, but wild LoRAs are proving to have surprising inconsistencies, and I'm not yet convinced they affect the video generation at all.
 
 ---
 ### Sneak Peek at Advanced and Debug Controls
