@@ -1,0 +1,1 @@
+This folder contains draft designs for un-triaged possible future functionality. They exist here as scratchpads of tangential transient thoughts seem in need of capture, not TODO items or actual proposals.

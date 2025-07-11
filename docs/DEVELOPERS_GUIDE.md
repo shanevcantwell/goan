@@ -20,7 +20,7 @@ The application is built on four core principles:
 | Component | Responsibility | Key State Attributes |
 | :--- | :--- | :--- |
 | **`SharedState`** | Holds global, thread-safe application state and threading events. | `interrupt_flag`, `stop_requested_flag`, `manual_preview_request_flag`, `pause_request_flag`, `models` (dict), `system_info` (dict) |
-| **`QueueManager`** | Manages all operations on the task queue data structure. | `queue` (list), `processing` (bool), `editing_task_id` (int/None), `next_task_id` (int) |
+| **`QueueManager`** | Manages all operations on the task queue data structure. Responsible for orchestrating the saving and loading of the queue to/from disk for session persistence. | `queue` (list), `processing` (bool), `editing_task_id` (int/None), `next_task_id` (int) |
 
 ---
 
@@ -103,6 +103,31 @@ Communication between the UI, the agent, and the worker is handled via message p
 6.  **UI Update**: The worker pushes the preview file path to the agent via a `('file', ...)` message. The agent forwards this to the UI listener, which updates the video player in the UI.
 7.  **Button State Reset**: The `ProcessingAgent` is also responsible for sending a UI update to reset the "Create Preview" button back to its default "Create Preview Now" state. This happens because the agent, upon receiving the next segment's progress, will see the flag is now clear and update the button accordingly.
 
+### Flow 4: Editing a Queued Task
+
+1.  **User Action**: The user clicks the "Edit" button on a task row in the queue.
+2.  **UI Handler**: The `handle_queue_action_on_select` function is called, which in turn calls `queue_manager_instance.start_editing_task(task_id)`.
+3.  **State Change**: The `QueueManager` sets its internal `editing_task_id` to the selected task's ID. It also loads that task's parameters into the main UI controls.
+4.  **UI Update**: The `update_button_states` function (see below) detects that the application is in an "editing" state. It disables most controls, re-labels the "Add Task" button to "Update Task", and makes a "Cancel Edit" button visible.
+5.  **User Modifies & Saves**: The user adjusts the parameters in the UI and clicks "Update Task".
+6.  **Handler & State Commit**: The corresponding event handler collects the current UI parameters and calls `queue_manager_instance.finish_editing_task(updated_params)`.
+7.  **Finalize**: The `QueueManager` updates the task in its internal queue with the new parameters, clears the `editing_task_id`, and the UI returns to its normal idle state.
+
+### Flow 5: Pausing and Resuming a Task
+
+This flow is essential for the checkpointing feature.
+
+1.  **User Action**: The user clicks the "Pause" button while a task is running.
+2.  **Signal Path**: The UI listener sends a `{"type": "pause"}` message to the `ProcessingAgent`, which sets the `pause_request_flag`.
+3.  **Worker Checkpoint**: The `worker`, at a safe point (e.g., between generation segments), checks `pause_request_flag.is_set()`.
+4.  **State Bundling**: Upon detecting the flag, the worker bundles its critical state (e.g., current latents, segment index, RNG state) into a `state_data` dictionary.
+5.  **Signal Pause**: The worker pushes a `('paused_with_state', state_data)` message to the `ProcessingAgent` and enters a waiting state.
+6.  **Agent & UI Update**: The agent receives the message, forwards a `task_paused` event to the `ui_update_queue`, and stores the `state_data` associated with the task. The UI updates to show a "Paused" status.
+7.  **User Resumes**: The "Process Queue" button will have changed to a "Resume" button. The user clicks it.
+8.  **Resume Signal**: The UI listener sends a `{"type": "resume"}` message to the `ProcessingAgent`.
+9.  **Agent Orchestration**: The agent retrieves the stored `state_data` for the paused task and signals the waiting `worker` thread to continue, passing the `state_data` back to it.
+10. **Worker Resumes**: The `worker` receives the signal, unpacks the `state_data` to restore its state, and resumes the generation process exactly where it left off.
+
 ---
 
 ## 4. UI State Logic: The Button State Machine
@@ -129,6 +154,26 @@ The application provides out-of-the-box support for older NVIDIA GPUs (Turing ar
 3.  **Inference**: The `worker` in `core/generation_core.py` also checks this flag and forces the `use_fp32_transformer_output` setting to `True`, ensuring stable inference. The corresponding UI checkbox is automatically hidden to prevent user confusion.
 
 This approach, based on work by `@freely-boss`, ensures maximum compatibility without requiring any user intervention.
+
+### PNG Metadata for "Recipes"
+
+The application allows users to save and load their exact generation settings by embedding them in the input image's metadata, a feature common in other creative AI tools.
+
+*   **Saving a Recipe**:
+    1.  When the user clicks "Download Image", an event handler in `ui/workspace.py` is triggered.
+    2.  This handler gathers all relevant parameters from the UI controls into a dictionary.
+    3.  The dictionary is serialized into a JSON string.
+    4.  Using the `Pillow` library, the original input image is opened, and the JSON string is saved into the PNG's metadata, typically in a `tEXt` chunk with a unique key like `goan_params`.
+
+*   **Loading a Recipe**:
+    1.  The main image input component is wired with an `.upload()` event handler in `ui/switchboard_workspace.py`.
+    2.  When a user drops a PNG file, the handler function (in `ui/workspace.py`) is executed.
+    3.  It uses `Pillow` to open the image and inspects its `.info` attribute for the `goan_params` key.
+    4.  If the key is found, the JSON string is parsed back into a parameter dictionary.
+    5.  A confirmation modal is shown to the user.
+    6.  If the user agrees, the handler function returns a large tuple of `gr.update()` objects, one for each UI control, populating the entire interface with the settings from the file.
+
+---
 
 ### LoRA Application and Reversion
 
