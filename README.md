@@ -1,6 +1,6 @@
 # **goan: A Power-User UI for FramePack**
-![goan_ui_running_collapsed_including_mp4_preview](https://github.com/user-attachments/assets/ba7cbe9e-2684-4f00-80fe-82907467eaff)
-
+![goan_ui_running_collapsed_including_mp4_preview](https://github.com/shanevcantwell/goan/blob/goan-development/docs/screenshots/05%20Preview%20generated.png?raw=true)
+(UI still being finalized, this is a WIP screenshot)
 > [!IMPORTANT]
 > An absolute must-read before even touching `goan` is [the official FramePack by lllyasviel documentation](https://github.com/lllyasviel/FramePack), as it contains beautiful examples of what FramePack is capable of from just the most basic controls.
 
