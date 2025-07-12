@@ -32,8 +32,29 @@ def create_ui():
 
     /* Control Columns (1-5): Fixed width, centered. */
     #queue_df th:nth-child(-n+5), #queue_df td:nth-child(-n+5) {
-        width: 2.5rem; /* Scalable unit for zoom */
+        width: 2.0rem; /* Shrink width to give more space to the prompt column */
         text-align: center;
+        padding: 0 2px; /* Default padding for headers */
+    }
+    #queue_df td:nth-child(-n+5) {
+        padding: 0; /* Remove padding from cells to let the link fill them entirely */
+    }
+
+    /* --- Fix for Queue Action Click Targets --- */
+    /* Make the entire cell for an action icon a clickable link, improving hit area. */
+    #queue_df td:nth-child(-n+5) a {
+        display: block;
+        padding: 4px 2px; /* This padding defines the clickable area inside the link. */
+        line-height: 1.5; /* Improve vertical spacing and click target height. */
+    }
+    /* Disable clicks on the disabled action icons (spans) */
+    #queue_df td:nth-child(-n+5) span {
+        pointer-events: none;
+    }
+    /* Disable the annoying drag behavior on links and images in the queue */
+    #queue_df a, #queue_df img {
+        -webkit-user-drag: none; user-drag: none;
+        user-select: none; -webkit-user-select: none; -moz-user-select: none;
     }
 
     /* Status Column (6): Fixed width, left-aligned, allows wrapping. */
@@ -65,18 +86,29 @@ def create_ui():
         --color-accent-700: #388E3C; --color-accent-800: #2E7D32;
         --color-accent-900: #1B5E20;
     }
-    /* Re-instate the primary button override to work with the default theme. */
-    .gr-button-primary { background-color: var(--color-accent-500) !important; color: white !important; }
-    .gr-button-primary:hover { background-color: var(--color-accent-600) !important; }
+    /* Apply green color only to *enabled* primary buttons to allow default disabled styles. */
+    .gr-button-primary:not([disabled]) { background-color: var(--color-accent-500) !important; color: white !important; }
+    .gr-button-primary:not([disabled]):hover { background-color: var(--color-accent-600) !important; }
 
     /* Custom blue color for specific action buttons */
     #clear_image_button:not([disabled]), #download_image_button:not([disabled]) {
-        background-color: #2563eb !important; /* A standard blue */
+        background-color: #3b82f6 !important; /* A softer, less intense blue */
         color: white !important;
-        border-color: #2563eb !important;
+        border-color: #3b82f6 !important;
     }
     #clear_image_button:not([disabled]):hover, #download_image_button:not([disabled]):hover {
-        background-color: #1d4ed8 !important; /* A darker blue for hover */
+        background-color: #2563eb !important; /* A slightly darker blue for hover */
+    }
+
+    /* --- Consistent Disabled Button Styling --- */
+    /* This ensures all buttons, regardless of their original color, have the same greyed-out appearance when disabled. */
+    .gr-button-primary[disabled],
+    .gr-button-stop[disabled],
+    #clear_image_button[disabled],
+    #download_image_button[disabled] {
+        background-color: #374151 !important; /* Dark grey for dark theme */
+        color: #9ca3af !important;            /* Muted grey for text */
+        border-color: #4b5563 !important;     /* Slightly lighter border */
     }
 
     /* Highlight the Image Input Box on Load */
@@ -181,7 +213,7 @@ def create_ui():
                 components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
                 components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                 components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
-                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download 'Dataful' Image", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
+                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Settings", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
             with gr.Column(scale=2, min_width=600):
                 components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=10, max_lines=10, elem_id="positive_prompt")
@@ -198,7 +230,7 @@ def create_ui():
         components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
 
         components[K.QUEUE_DF] = gr.DataFrame(
-            headers=["↑", "↓", "⏸️", "✎", "✖", "Status", "Prompt", "Image", "Length", "ID"],
+            headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"],
             datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
             col_count=(10, "dynamic"),
             interactive=True,
