@@ -52,7 +52,7 @@ def wire_events(components: dict):
         outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
     ).then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 

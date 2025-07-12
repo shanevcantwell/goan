@@ -42,40 +42,6 @@ def ui_update_total_segments(total_seconds_ui, latent_window_size_ui, fps_ui):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, latent_window_size_ui={latent_window_size_ui}, fps_ui={fps_ui}", exc_info=True)
         return "Segments: Invalid input"
 
-def process_upload_and_show_image(temp_file_data):
-    """
-    Robustly handles file uploads from a gr.File component, checks for metadata,
-    and returns UI updates.
-    """
-    filepath = None
-    if isinstance(temp_file_data, str):
-        filepath = temp_file_data
-    elif hasattr(temp_file_data, 'name'):
-        filepath = temp_file_data.name
-    elif isinstance(temp_file_data, dict):
-        filepath = temp_file_data.get('path')
-
-    if not filepath:
-        return (
-            gr.update(visible=True, value=None),    # IMAGE_FILE_INPUT
-            gr.update(visible=False, value=None),   # INPUT_IMAGE_DISPLAY
-            gr.update(interactive=False),           # CLEAR_IMAGE_BUTTON
-            gr.update(interactive=False),           # DOWNLOAD_IMAGE_BUTTON
-            gr.update(variant="secondary"),         # ADD_TASK_BUTTON
-            "", {}, None
-        )
-
-    pil_image, prompt_preview, params = metadata_manager.open_and_check_metadata(filepath)
-
-    has_loadable_metadata = bool(params and any(key in params for key in shared_state_module.CREATIVE_PARAM_KEYS))
-
-    trigger_value = str(time.time()) if has_loadable_metadata else None
-
-    final_prompt_preview = prompt_preview if has_loadable_metadata else ""
-
-    return (gr.update(visible=False, value=None), gr.update(visible=True, value=pil_image), gr.update(interactive=True),
-            gr.update(interactive=True), gr.update(variant="primary"), final_prompt_preview, params, trigger_value)
-
 def clear_image_action():
     """Clears the input image and resets associated UI components."""
     return (
@@ -87,25 +53,28 @@ def clear_image_action():
         {} # For extracted_metadata_state
     )
 
-def prepare_image_for_download(pil_image, app_state, ui_keys, *creative_values):
-    """Injects metadata into the current image and prepares it for download."""
+def prepare_image_for_download(pil_image, lora_name, lora_weight, lora_targets, *creative_values):
+    """Injects metadata, including LoRA settings, into the current image and prepares it for download."""
     if not isinstance(pil_image, Image.Image):
         gr.Warning("No valid image to download.")
         return None
 
-    image_copy = pil_image.copy()
-    params_dict = metadata_manager.create_params_from_ui(ui_keys, creative_values) 
+    # Get the keys for the creative values, which are passed as a tuple
+    creative_keys = list(workspace_manager.get_default_values_map().keys())
+    params_dict = metadata_manager.create_params_from_ui(creative_keys, creative_values)
 
-    lora_state = app_state.get('lora_state', {})
-    if lora_state and lora_state.get('loaded_loras'):
-        params_dict['loras'] = {
-            name: data.get("weight", 1.0)
-            for name, data in lora_state['loaded_loras'].items()
-        }
+    # Add LoRA data if a LoRA is selected, using the future-proof list-of-objects schema.
+    if lora_name:
+        params_dict['loras'] = [{
+            "name": lora_name,
+            "weight": lora_weight,
+            "targets": lora_targets
+        }]
 
     pnginfo_obj = metadata_manager.create_pnginfo_obj(params_dict)
+    image_copy = pil_image.copy() # Use a copy to avoid modifying the displayed image's info
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-        pil_image.save(tmp_file.name, "PNG", pnginfo=pnginfo_obj)
+        image_copy.save(tmp_file.name, "PNG", pnginfo=pnginfo_obj)
         gr.Info("Image with current settings prepared for download.")
         return gr.update(value=tmp_file.name)
 
@@ -116,11 +85,11 @@ def toggle_manual_preview_action():
     optimistic UI feedback on the button itself. The backend worker is
     responsible for reading this flag and clearing it after use.
     """
-    if shared_state_module.shared_state_instance.manual_preview_request_flag.is_set():
-        shared_state_module.shared_state_instance.manual_preview_request_flag.clear()
-        return gr.update(value="Create Preview Now")
+    if shared_state_module.shared_state_instance.preview_request_flag.is_set():
+        shared_state_module.shared_state_instance.preview_request_flag.clear()
+        return gr.update(value="📸 Generate a preview for the currently processing segment")
     else:
-        shared_state_module.shared_state_instance.manual_preview_request_flag.set()
+        shared_state_module.shared_state_instance.preview_request_flag.set()
         return gr.update(value="Cancel Preview Request")
 
 # Define the button keys in a fixed order for consistent output.
@@ -138,12 +107,14 @@ def get_button_state_outputs(components: dict) -> list:
     """Returns the list of button components for state updates."""
     return [components[key] for key in BUTTON_KEYS]
 
-def update_button_states(app_state, input_image_pil, queue_df_data):
+def update_button_states(input_image_pil):
     """
     Updates button states based on a declarative rules engine. This function
     is the single source of truth for the state of all major control buttons.
     """
     # 1. Derive the current application state from the inputs.
+    # This function intentionally does not use app_state or queue_df_data from the UI,
+    # as it gets the most up-to-date state directly from the singleton manager.
     queue_state = queue_manager_instance.get_state()
     is_editing = queue_state.get("editing_task_id") is not None
     is_processing = queue_state.get("processing", False)

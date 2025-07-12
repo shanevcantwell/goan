@@ -54,7 +54,7 @@ def wire_events(components: dict):
         outputs=upload_outputs
     ).then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.IMAGE_FILE_INPUT]],
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
@@ -62,17 +62,26 @@ def wire_events(components: dict):
         fn=event_handlers.clear_image_action, inputs=None, outputs=clear_button_outputs
     ).then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.IMAGE_FILE_INPUT]],
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
+    # --- LoRA Recipe Save Logic ---
+    # Define the inputs for the download handler. The order is critical.
+    download_handler_inputs = [
+        components[K.INPUT_IMAGE_DISPLAY],
+        components[K.LORA_NAME],
+        components[K.LORA_WEIGHT],
+        components[K.LORA_TARGETS]
+    ] + creative_ui_components
+
     (components[K.DOWNLOAD_IMAGE_BUTTON].click(
         fn=event_handlers.prepare_image_for_download,
-        inputs=([components[K.INPUT_IMAGE_DISPLAY], components[K.APP_STATE], gr.State(shared_state_module.CREATIVE_UI_KEYS)] + creative_ui_components),
+        inputs=download_handler_inputs,
         outputs=components[K.IMAGE_DOWNLOADER], show_progress=True, api_name="download_image_with_metadata"
     ).then(
         fn=None, inputs=None, outputs=None,
-        js="() => { document.getElementById('image_downloader_hidden_file').querySelector('a[download]').click(); }"
+        js="(file) => { document.getElementById('image_downloader_hidden_file').querySelector('a[download]').click(); }"
     ))
 
     components[K.METADATA_MODAL_TRIGGER_STATE].change(

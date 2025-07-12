@@ -65,6 +65,7 @@ def create_ui():
         --color-accent-700: #388E3C; --color-accent-800: #2E7D32;
         --color-accent-900: #1B5E20;
     }
+    /* Re-instate the primary button override to work with the default theme. */
     .gr-button-primary { background-color: var(--color-accent-500) !important; color: white !important; }
     .gr-button-primary:hover { background-color: var(--color-accent-600) !important; }
 
@@ -144,6 +145,7 @@ def create_ui():
     }
     .current_task_progress_bar > .gr-html {
 }
+
     """
 
     components = {}
@@ -180,9 +182,10 @@ def create_ui():
                 components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                 components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
                 components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download 'Dataful' Image", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
+                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
             with gr.Column(scale=2, min_width=600):
-                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=10, max_lines=10)
-                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=4)
+                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=10, max_lines=10, elem_id="positive_prompt")
+                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=5,elem_id="negative_prompt")
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
@@ -191,9 +194,6 @@ def create_ui():
             with gr.Column(scale=1):
                 components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
-            with gr.Column(scale=2):
-                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
-
         components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
         components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
 
@@ -202,7 +202,8 @@ def create_ui():
             datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
             col_count=(10, "dynamic"),
             interactive=True,
-            elem_id="queue_df"
+            elem_id="queue_df",
+            max_height=350
         )
         with gr.Row():
             components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", size="sm", interactive=False)

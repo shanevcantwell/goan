@@ -48,7 +48,7 @@ def wire_events(components: dict):
     (components[K.ADD_TASK_BUTTON].click(
         fn=queue_actions.add_or_update_task_in_queue, inputs=task_defining_ui_inputs, outputs=add_task_outputs
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        fn=event_handlers.update_button_states, inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ).then(
         fn=event_handlers.ui_update_total_segments,
@@ -59,7 +59,7 @@ def wire_events(components: dict):
     (components[K.PROCESS_QUEUE_BUTTON].click(
         fn=queue_processing.process_task_queue_and_listen, inputs=lora_ui_controls, outputs=process_q_outputs
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        fn=event_handlers.update_button_states, inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
@@ -70,7 +70,7 @@ def wire_events(components: dict):
         outputs=[components[K.CREATE_PREVIEW_BUTTON]]
     ).then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
@@ -85,7 +85,7 @@ def wire_events(components: dict):
     (components[K.CLEAR_QUEUE_BUTTON].click(
         fn=queue_actions.clear_task_queue_action, inputs=None, outputs=[components[K.APP_STATE], components[K.QUEUE_DF]]
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        fn=event_handlers.update_button_states, inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
@@ -99,7 +99,7 @@ def wire_events(components: dict):
     (components[K.LOAD_QUEUE_BUTTON].upload(
         fn=queue_actions.load_queue_from_zip, inputs=[components[K.LOAD_QUEUE_BUTTON]], outputs=[components[K.APP_STATE], components[K.QUEUE_DF]]
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]], outputs=button_state_outputs
+        fn=event_handlers.update_button_states, inputs=[components[K.INPUT_IMAGE_DISPLAY]], outputs=button_state_outputs
     ))
 
     (components[K.QUEUE_DF].select(
@@ -112,6 +112,6 @@ def wire_events(components: dict):
         outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
     ).then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.QUEUE_DF]],
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
