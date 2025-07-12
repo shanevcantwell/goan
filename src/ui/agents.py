@@ -136,7 +136,7 @@ class ProcessingAgent(threading.Thread):
                 # A single-task interrupt might have been set by the previous iteration. Clear it.
                 shared_state_module.shared_state_instance.interrupt_flag.clear()
 
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
                     break
                 task = queue_manager_instance.get_and_start_next_task()
 
@@ -210,7 +210,7 @@ class ProcessingAgent(threading.Thread):
                 # to perform the correct UI cleanup (e.g., clearing progress bars).
                 ui_update_queue.put(("task_finished", {"id": task["id"], "status": task_final_status, "final_path": final_output_path}))
 
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
                     ui_update_queue.put(("info", "Queue processing stopped by user."))
                     break
         finally:

@@ -95,7 +95,7 @@ class QueueManager:
 
     def clear_edit_mode(self):
         """Resets the task editing state to None."""
-        with self.lock:
+        with self.queue_lock:
             if "editing_task_id" in self.state:
                 self.state["editing_task_id"] = None
 

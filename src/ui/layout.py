@@ -1,4 +1,4 @@
-# ui/layout.py
+  # ui/layout.py
 # This file defines the Gradio UI layout for the goan application.
 
 import gradio as gr
@@ -225,9 +225,8 @@ def create_ui():
         with gr.Row():
             with gr.Column(scale=1):
                 components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
+            with gr.Column(scale=2):
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
-        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
-        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
 
         components[K.QUEUE_DF] = gr.DataFrame(
             headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"],
@@ -243,12 +242,19 @@ def create_ui():
             components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", size="sm", variant="stop", interactive=False)
 
         components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
-            label="Live Latent Preview",
+            # label="Live Latent Preview",
             interactive=False,
-            visible=False, # Starts hidden, made visible by the agent during processing.
+            # visible=False, # Starts hidden, made visible by the agent during processing.
             show_download_button=False,
             elem_id="current_task_preview_image_ui"
         )
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
+            with gr.Column(scale=2):
+                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+
         with gr.Row():
             with gr.Column(scale=1):
                 with gr.Accordion("Advanced Settings", open=False):

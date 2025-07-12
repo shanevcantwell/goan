@@ -1,6 +1,7 @@
 # ui/switchboard_helpers.py
 # Contains helper functions to simplify event wiring in switchboard modules.
 import logging
+import gradio as gr
 from .enums import ComponentKey as K
 from . import event_handlers
 
@@ -17,10 +18,18 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
         update_segments (bool): If True, chains the segment count update as well.
     """
     button_state_outputs = event_handlers.get_button_state_outputs(components)
+
+    # Wrapper to absorb the payload from the preceding event.
+    # The `update_button_states` function expects only one argument (the image),
+    # but `event.then()` passes the event's output *before* the specified inputs.
+    # This wrapper correctly calls the handler with only the argument it needs.
+    def button_state_update_wrapper(*args):
+        # The input_image_display value is the last argument.
+        input_image_pil = args[-1]
+        return event_handlers.update_button_states(input_image_pil)
+
     event.then(
-        fn=event_handlers.update_button_states,
-        # The handler gets its state from singletons, so it only needs the image display.
-        # This aligns with the "Ask the Singleton" philosophy.
+        fn=button_state_update_wrapper,
         inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     )
@@ -41,7 +50,8 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
 
         event.then(
             fn=segment_update_wrapper,
-            # Pass the original event to pipe its outputs, followed by our specific inputs.
-            inputs=[event] + segment_recalc_inputs,
+            # The `inputs` list should only contain UI components. The output from the
+            # preceding `event` is piped implicitly as the first arguments to the function.
+            inputs=segment_recalc_inputs,
             outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
         )
