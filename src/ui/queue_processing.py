@@ -101,15 +101,22 @@ def process_task_queue_and_listen(*lora_control_values):
                     gr.update()                                   # CLEAR_QUEUE_BUTTON
                 )
             elif flag == "task_finished":
-                status = data['status']
-                final_message = f"Task {data['id']} {status}."
+                status = data.get('status')
+                task_id = data.get('id')
+                final_path = data.get('final_path')
+
+                final_message = f"Task {task_id} {status}."
                 if status == 'aborted':
-                    final_message = f"Task {data['id']} stopped by user."
+                    final_message = f"Task {task_id} stopped by user."
+
+                # If a final path was provided, update the video player one last time.
+                # Otherwise, send a no-op update to preserve its current state.
+                video_update = gr.update(value=final_path) if final_path else gr.update()
 
                 yield (
                     gr.update(),
                     queue_helpers.update_queue_df_display(),
-                    gr.update(),
+                    video_update,
                     gr.update(),
                     final_message, # Progress description
                     gr.update(value=None, visible=False), # Clear progress bar
@@ -139,7 +146,7 @@ def process_task_queue_and_listen(*lora_control_values):
         gr.update(),
         queue_helpers.update_queue_df_display(),
         gr.update(), # LAST_FINISHED_VIDEO
-        gr.update(value=None), # CURRENT_TASK_PREVIEW_IMAGE
+        gr.update(), # CURRENT_TASK_PREVIEW_IMAGE
         gr.update(value=""), # CURRENT_TASK_PROGRESS_DESCRIPTION
         gr.update(value=None, visible=False), # CURRENT_TASK_PROGRESS_BAR
         gr.update(), # PROCESS_QUEUE_BUTTON

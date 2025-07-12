@@ -57,9 +57,16 @@ def wire_events(components: dict):
     ))
 
     (components[K.PROCESS_QUEUE_BUTTON].click(
-        fn=queue_processing.process_task_queue_and_listen, inputs=lora_ui_controls, outputs=process_q_outputs
+        fn=event_handlers.optimistic_process_button_update,
+        inputs=None,
+        outputs=[components[K.PROCESS_QUEUE_BUTTON]]
     ).then(
-        fn=event_handlers.update_button_states, inputs=[components[K.INPUT_IMAGE_DISPLAY]],
+        fn=queue_processing.process_task_queue_and_listen,
+        inputs=lora_ui_controls,
+        outputs=process_q_outputs
+    ).then(
+        fn=event_handlers.update_button_states,
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     ))
 
@@ -104,8 +111,8 @@ def wire_events(components: dict):
 
     (components[K.QUEUE_DF].select(
         fn=queue_actions.handle_queue_action_on_select,
-        inputs=None,  # Inputs are not needed; the handler gets info from the event or state.
-        outputs=add_task_outputs
+        inputs=None,  # The event data is passed implicitly as the first argument.
+        outputs=add_task_outputs,
     ).then(
         fn=event_handlers.ui_update_total_segments,
         inputs=[components[K.VIDEO_LENGTH_SLIDER], components[K.LATENT_WINDOW_SIZE_SLIDER], components[K.FPS_SLIDER]],

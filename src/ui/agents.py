@@ -208,7 +208,7 @@ class ProcessingAgent(threading.Thread):
                 )
                 # The UI listener, however, still needs to know the original 'aborted' status
                 # to perform the correct UI cleanup (e.g., clearing progress bars).
-                ui_update_queue.put(("task_finished", {"id": task["id"], "status": task_final_status}))
+                ui_update_queue.put(("task_finished", {"id": task["id"], "status": task_final_status, "final_path": final_output_path}))
 
                 if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
                     ui_update_queue.put(("info", "Queue processing stopped by user."))

@@ -19,8 +19,9 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
     button_state_outputs = event_handlers.get_button_state_outputs(components)
     event.then(
         fn=event_handlers.update_button_states,
-        inputs=[components[K.APP_STATE], components[K.INPUT_IMAGE_DISPLAY], components[K.IMAGE_FILE_INPUT]
-                ],
+        # The handler gets its state from singletons, so it only needs the image display.
+        # This aligns with the "Ask the Singleton" philosophy.
+        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=button_state_outputs
     )
     if update_segments:
@@ -29,15 +30,18 @@ def chain_event_updates(event, components: dict, update_segments: bool = False):
             components[K.LATENT_WINDOW_SIZE_SLIDER],
             components[K.FPS_SLIDER]
         ]
-        
+
+        # The wrapper function is robustly designed to handle the event payload.
+        # It accepts any number of arguments from the preceding event's output (*args)
+        # and then calls the target function with only the specific inputs it needs.
+        def segment_update_wrapper(*args):
+            # The component values from `inputs` are always the last arguments.
+            video_length, latent_window_size, fps = args[-len(segment_recalc_inputs):]
+            return event_handlers.ui_update_total_segments(video_length, latent_window_size, fps)
+
         event.then(
-            fn=lambda event_output_payload, video_length, latent_window_size, fps: \
-                event_handlers.ui_update_total_segments(video_length, latent_window_size, fps),
-            inputs=[
-                event, # Implicit outputs of 'event' are the first argument to the lambda
-                components[K.VIDEO_LENGTH_SLIDER],
-                components[K.LATENT_WINDOW_SIZE_SLIDER],
-                components[K.FPS_SLIDER]
-            ],
+            fn=segment_update_wrapper,
+            # Pass the original event to pipe its outputs, followed by our specific inputs.
+            inputs=[event] + segment_recalc_inputs,
             outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
         )

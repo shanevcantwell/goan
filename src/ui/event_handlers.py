@@ -78,6 +78,20 @@ def prepare_image_for_download(pil_image, lora_name, lora_weight, lora_targets, 
         gr.Info("Image with current settings prepared for download.")
         return gr.update(value=tmp_file.name)
 
+def optimistic_process_button_update():
+    """
+    Provides immediate feedback on the Process/Stop button.
+    Checks the current processing state to decide whether to show
+    "Starting..." or "Stopping...". This is an optimistic UI update.
+    """
+    if queue_manager_instance.get_state().get("processing", False):
+        # We are currently processing, so this click is a STOP request.
+        # The stop_requested_flag is set in the main handler. We just update the UI.
+        return gr.update(interactive=False, value="Stopping...", variant="stop")
+    else:
+        # We are not processing, so this click is a START request.
+        return gr.update(interactive=False, value="Starting...", variant="secondary")
+
 
 def toggle_manual_preview_action():
     """

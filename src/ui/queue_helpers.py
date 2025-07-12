@@ -98,7 +98,7 @@ def update_queue_df_display():
     def _button_markdown(icon: str, enabled: bool) -> str:
         # ... (this helper function is correct as is)
         if enabled:
-            return f"<a href='#' style='text-decoration: none; font-size: 1.2em;'>{icon}</a>"
+            return f"<a href='#' draggable='false' style='text-decoration: none; font-size: 1.2em;'>{icon}</a>"
         else:
             return f"<span style='color: #999; font-size: 1.2em; cursor: not-allowed;'>{icon}</span>"
 
@@ -111,9 +111,12 @@ def update_queue_df_display():
         is_editing_current_task = editing_task_id == task_id
         is_pending = status == 'pending'
 
-        up_enabled = is_pending and i > 0 and not is_processing_current_task
-        down_enabled = is_pending and i < (total_tasks - 1) and not is_processing_current_task
+        # Refined logic: Allow reordering of pending tasks below the currently
+        # processing task, but prevent any task from being moved into slot 0.
+        up_enabled = is_pending and i > (1 if processing else 0)
+        down_enabled = is_pending and not is_processing_current_task and i < (total_tasks - 1)
         pause_enabled = is_processing_current_task
+        # Can edit if pending and not the currently processing task.
         edit_enabled = is_pending and not is_processing_current_task
         cancel_enabled = is_pending or is_processing_current_task
 
@@ -131,7 +134,7 @@ def update_queue_df_display():
 
         img_uri = np_to_base64_uri(params.get('input_image'), format="png")
         thumbnail_size = "50px"
-        img_md = f'<img src="{img_uri}" alt="Input" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display:block; margin:auto; object-fit:contain;" />' if img_uri else ""
+        img_md = f'<img draggable="false" src="{img_uri}" alt="Input" style="max-width:{thumbnail_size}; max-height:{thumbnail_size}; display:block; margin:auto; object-fit:contain;" />' if img_uri else ""
 
         # The status of the task should be the primary source of truth.
         # We check `i == 0` as a safeguard, because only the top task can be processing.
@@ -149,4 +152,4 @@ def update_queue_df_display():
         ])
 
     # Return an empty DataFrame with the correct headers if the queue is empty
-    return gr.update(value=data) if data else gr.update(value=[], headers=["↑", "↓", "⏸️", "✎", "✖", "Status", "Prompt", "Image", "Length", "ID"], datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"], col_count=(10, "dynamic"))
+    return gr.update(value=data) if data else gr.update(value=[], headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"], datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"], col_count=(10, "dynamic"))

@@ -189,10 +189,19 @@ def handle_queue_action_on_select(evt: gr.SelectData):
 
     logger.info(f"Queue action '{action}' requested for task {task_id} with status '{status}'.")
 
+    is_processing_globally = queue_state.get("processing", False)
+
     # --- Backend Enforcement of Disabled State ---
     if action in ['move_up', 'move_down', 'edit'] and not is_pending:
         gr.Info(f"Cannot '{action}' a task that is not 'Pending'.")
         return [gr.update()] * num_outputs
+    if is_processing_globally:
+        if action == 'move_up' and row_index <= 1:
+            gr.Info("Cannot move a task into the 'currently processing' slot.")
+            return [gr.update()] * num_outputs
+        if action in ['move_down', 'edit'] and row_index == 0:
+            gr.Info(f"Cannot '{action}' the currently processing task.")
+            return [gr.update()] * num_outputs
     if action == 'pause' and not is_processing:
         gr.Info("Can only pause a task that is currently 'Processing'.")
         return [gr.update()] * num_outputs
