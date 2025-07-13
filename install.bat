@@ -7,10 +7,20 @@ set SCRIPT_DIR=%~dp0
 set INSTALL_DIR=%SCRIPT_DIR%install
 set INSTALL_SCRIPT=%INSTALL_DIR%\install.py
 
-:: Check for Python
-where python >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Error: Python is not found. Please install Python and ensure it's in your PATH.
+:: Check for Python, preferring python3 if available to align with the Linux script.
+set PYTHON_CMD=
+where python3 >nul 2>nul
+if %errorlevel% equ 0 (
+    set PYTHON_CMD=python3
+) else (
+    where python >nul 2>nul
+    if %errorlevel% equ 0 (
+        set PYTHON_CMD=python
+    )
+)
+
+if not defined PYTHON_CMD (
+    echo Error: Python is not found. Please install Python 3 and ensure 'python' or 'python3' is in your PATH.
     goto :eof
 )
 
@@ -25,4 +35,4 @@ if not exist "%INSTALL_SCRIPT%" (
 )
 
 :: Pass arguments to the Python script
-python "%INSTALL_SCRIPT%" %*
+%PYTHON_CMD% "%INSTALL_SCRIPT%" %*
