@@ -133,8 +133,12 @@ class ProcessingAgent(threading.Thread):
 
             # The main processing loop. It will only terminate if a full stop is requested.
             while not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-                # A single-task interrupt might have been set by the previous iteration. Clear it.
-                shared_state_module.shared_state_instance.interrupt_flag.clear()
+                # If a full stop hasn't been requested, we can clear the single-task interrupt flag
+                # from a previous iteration. If a full stop IS requested, we must leave the
+                # interrupt flag set for the worker to see it and halt. This prevents a race
+                # condition where the flag is cleared before the worker can act on it.
+                if not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+                    shared_state_module.shared_state_instance.interrupt_flag.clear()
 
                 if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
                     break

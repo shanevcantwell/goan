@@ -30,8 +30,6 @@ def create_ui():
         padding: 4px;
     }
 
-    /* Control Columns (1-5): Fixed width, centered. */
-    #queue_df th:nth-child(-n+5), #queue_df td:nth-child(-n+5) {
         width: 2.0rem; /* Shrink width to give more space to the prompt column */
         text-align: center;
         padding: 0 2px; /* Default padding for headers */
@@ -135,7 +133,7 @@ def create_ui():
 
     #current_task_preview_image_ui div.fixed img {
         max-width: 95vw !important;
-        max-height: 95vh !important;
+        max-height: 50vh !important;
         object-fit: contain !important;
     }
         /* Makes the column a flex container that can stretch vertically */
@@ -203,21 +201,22 @@ def create_ui():
             components[K.METADATA_MODAL] = metadata_modal
             gr.Markdown("Image has saved parameters. Overwrite current creative settings?")
             components[K.METADATA_PROMPT_PREVIEW] = gr.Textbox(label="Detected Prompt", interactive=False, lines=5, max_lines=10)
+            components[K.METADATA_OVERWRITE_SEED_CHECKBOX] = gr.Checkbox(label="Overwrite current seed with metadata seed", value=True, scale=1)
             with gr.Row():
                 components[K.CANCEL_METADATA_BUTTON] = gr.Button("No")
                 components[K.CONFIRM_METADATA_BUTTON] = gr.Button("Yes, Apply", variant="primary")
 
         with gr.Row():
             with gr.Column(scale=1):
-                components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Image or .goan_resume File Here", file_types=["image", ".zip", ".goan_resume"], elem_id="image_file_input_ui")
+                components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
                 components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
                 components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                 components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
-                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Settings", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
-                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
+                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
             with gr.Column(scale=2, min_width=600):
-                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=10, max_lines=10, elem_id="positive_prompt")
-                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=5,elem_id="negative_prompt")
+                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, elem_id="positive_prompt")
+                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines= 6,elem_id="negative_prompt")
+                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
@@ -245,15 +244,16 @@ def create_ui():
             # label="Live Latent Preview",
             interactive=False,
             # visible=False, # Starts hidden, made visible by the agent during processing.
+            visible=False,
             show_download_button=False,
             elem_id="current_task_preview_image_ui"
         )
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
-            with gr.Column(scale=2):
-                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+        # with gr.Row():
+        #     with gr.Column(scale=1):
+        #         components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
+        #     with gr.Column(scale=2):
+        #         components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -309,11 +309,15 @@ def create_ui():
                     components[K.SAVE_AS_DEFAULT_BUTTON] = gr.Button("Save as Default", variant="secondary")
                     components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required** for new output path to take effect.", visible=False)
             with gr.Column(scale=2):
-                components[K.TOTAL_SEGMENTS_DISPLAY] = gr.Markdown("Calculated Total Segments: N/A", elem_id="total_segments_display")
                 with gr.Row(equal_height=True):
-                    components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Generate a periodic preview of segments", minimum=0, maximum=100, value=5, step=1)
-                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Generate a preview for specific segments", value="")
-                components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
+                    components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, visible=False, elem_id="create_preview_button")
+                    components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
+                with gr.Row(equal_height=True):
+                    components[K.TOTAL_SEGMENTS_DISPLAY] = gr.Markdown("Calculated Total Segments: N/A", elem_id="total_segments_display")
+                    components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+                with gr.Row(equal_height=True):
+                    components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Interval of periodic automatic previews", minimum=0, maximum=100, value=5, step=1)
+                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(interactive=True, autoplay=False, height=540)
 
     return components

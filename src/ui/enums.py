@@ -35,6 +35,7 @@ class ComponentKey(StrEnum):
     # --- Metadata Modal ---
     METADATA_MODAL = auto()
     METADATA_PROMPT_PREVIEW = auto()
+    METADATA_OVERWRITE_SEED_CHECKBOX = auto()
     CANCEL_METADATA_BUTTON = auto()
     CONFIRM_METADATA_BUTTON = auto()
 
