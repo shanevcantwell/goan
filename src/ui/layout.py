@@ -213,10 +213,10 @@ def create_ui():
                 components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                 components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
                 components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
-            with gr.Column(scale=2, min_width=600):
-                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, elem_id="positive_prompt")
-                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines= 6,elem_id="negative_prompt")
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
+            with gr.Column(scale=2, min_width=600):
+                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, max_lines=11, elem_id="positive_prompt")
+                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=5, max_lines=5, elem_id="negative_prompt")
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
@@ -228,9 +228,11 @@ def create_ui():
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
 
         components[K.QUEUE_DF] = gr.DataFrame(
-            headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"],
-            datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
-            col_count=(10, "dynamic"),
+            # headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"],
+            # datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
+            headers=["Status", "Prompt", "Image", "Length", "ID"],
+            datatype=["markdown", "markdown", "markdown", "str", "number"],
+            col_count=(5, "dynamic"),
             interactive=True,
             elem_id="queue_df",
             max_height=350
@@ -246,14 +248,9 @@ def create_ui():
             # visible=False, # Starts hidden, made visible by the agent during processing.
             visible=False,
             show_download_button=False,
-            elem_id="current_task_preview_image_ui"
+            elem_id="current_task_preview_image_ui",
+            # height=100
         )
-
-        # with gr.Row():
-        #     with gr.Column(scale=1):
-        #         components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
-        #     with gr.Column(scale=2):
-        #         components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
 
         with gr.Row():
             with gr.Column(scale=1):
