@@ -73,7 +73,7 @@ def open_and_check_metadata(temp_filepath: str):
         gr.Warning(f"Could not open image. It may be corrupt or an unsupported format. Error: {e}")
         return None, "", {}
 
-def ui_load_params_from_image_metadata(extracted_metadata: dict) -> list:
+def ui_load_params_from_image_metadata(extracted_metadata: dict, overwrite_seed: bool) -> list:
     """
     Loads creative parameters from a metadata dictionary, performing necessary
     type conversions, and returns UI updates. This mirrors the logic from
@@ -81,7 +81,7 @@ def ui_load_params_from_image_metadata(extracted_metadata: dict) -> list:
     """
     param_to_ui_map = {v: k for k, v in shared_state_module.UI_TO_WORKER_PARAM_MAP.items()}
     updates_dict = {}
-    
+
     if extracted_metadata:
         # Centralize legacy conversion by calling the dedicated helper.
         legacy_support.convert_legacy_worker_params(extracted_metadata)

@@ -13,16 +13,6 @@ from .enums import ComponentKey as K
 from .queue_manager import queue_manager_instance
 logger = logging.getLogger(__name__)
 
-
-def reuse_last_seed_action(last_completed_seed):
-    """Returns the last completed seed, or -1 if none exists."""
-    if last_completed_seed is not None:
-        gr.Info(f"Reusing last completed seed: {last_completed_seed}")
-        return last_completed_seed
-    else:
-        gr.Warning("No task has been completed yet to reuse a seed from.")
-        return gr.update() # Return no-op to not change the value
-
 def safe_shutdown_action(app_state, *ui_values):
     """Performs all necessary save operations to prepare the app for a clean shutdown."""
     logger.info("Performing safe shutdown saves...")
@@ -91,8 +81,7 @@ def optimistic_process_button_update():
     else:
         # We are not processing, so this click is a START request.
         return gr.update(interactive=False, value="Starting...", variant="secondary")
-
-
+/* old
 def toggle_manual_preview_action():
     """
     Toggles the manual preview request flag in shared state and provides
@@ -105,6 +94,21 @@ def toggle_manual_preview_action():
     else:
         shared_state_module.shared_state_instance.preview_request_flag.set()
         return gr.update(value="Cancel Preview Request")
+*/
+
+
+def toggle_manual_preview_action():
+    """
+    Toggles the manual preview request flag in shared state.
+    The UI update is handled by the chained update_button_states call,
+    which acts as the single source of truth for button states.
+    """
+    if shared_state_module.shared_state_instance.preview_request_flag.is_set():
+        shared_state_module.shared_state_instance.preview_request_flag.clear()
+    else:
+        shared_state_module.shared_state_instance.preview_request_flag.set()
+    # Return a no-op update. The real update comes from the chained call.
+    return gr.update()
 
 # Define the button keys in a fixed order for consistent output.
 BUTTON_KEYS = [
@@ -156,10 +160,10 @@ def update_button_states(input_image_pil):
             K.ADD_TASK_BUTTON: gr.update(interactive=False),
             K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=False),
-            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=False),                                                                                                             
+            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=False),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=False),
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=False),
-        }},  
+        }},
         {'condition': lambda s: s['is_editing'], 'get_updates': lambda s: {
             K.ADD_TASK_BUTTON: gr.update(interactive=not s['is_editing_processing_task'], variant="primary"),
             K.PROCESS_QUEUE_BUTTON: gr.update(interactive=False, value="▶️ Process Queue", variant="secondary"),
@@ -171,14 +175,15 @@ def update_button_states(input_image_pil):
         }},
         {'condition': lambda s: s['is_processing'], 'get_updates': lambda s: {
             K.PROCESS_QUEUE_BUTTON: gr.update(interactive=True, value="⏹️ Stop Processing", variant="stop"),
-            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=not s['preview_requested'], 
-                                               variant="primary" if not s['preview_requested'] else "secondary"),
+            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=not s['preview_requested'],
+                                               value="Cancel Preview Request" if s['preview_requested'] else "📸 Generate a preview for the currently processing segment",
+                                               variant="secondary" if s['preview_requested'] else "primary"),
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=s['has_pending_tasks'], variant="stop" if s['has_pending_tasks'] else "secondary"),
             K.ADD_TASK_BUTTON: gr.update(interactive=s['has_image'], variant="primary" if s['has_image'] else "secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
-            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),            
+            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'], variant="primary"),
-            
+
         }},
         # Default rule for idle state.
         {'condition': lambda s: True, 'get_updates': lambda s: {
@@ -188,7 +193,7 @@ def update_button_states(input_image_pil):
                 value="▶️ Process Queue",
                 variant="primary"
                 ),
-            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),            
+            K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'], variant="primary"),
@@ -204,4 +209,5 @@ def update_button_states(input_image_pil):
             break
 
     # 4. Return the updates tuple in the correct, fixed order.
-    return tuple(updates_dict.get(key, gr.update()) for key in BUTTON_KEYS)
+    # Return a dictionary with updates for all buttons, using no-op for unspecified ones.
+    return {key: updates_dict.get(key, gr.update()) for key in BUTTON_KEYS}

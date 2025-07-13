@@ -71,8 +71,11 @@ def process_task_queue_and_listen(*lora_control_values):
                 # This ensures that after a manual preview request is consumed by the worker
                 # (and the flag is cleared), the button re-enables itself on the next update.
                 preview_requested = shared_state_module.shared_state_instance.preview_request_flag.is_set()
-                preview_button_update = gr.update(interactive=not preview_requested,
-                                                  variant="primary" if not preview_requested else "secondary")
+                preview_button_update = gr.update(
+                    interactive=not preview_requested,
+                    value="Cancel Preview Request" if preview_requested else "📸 Generate a preview for the currently processing segment",
+                    variant="secondary" if preview_requested else "primary"
+                )
 
                 yield (
                     gr.update(),  # APP_STATE
