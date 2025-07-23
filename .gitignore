@@ -201,3 +201,5 @@ goan.code-workspace
 goan.log.*
 *.bak.py
 src/ui/bak/
+install.bat.txt
+patch.txt
