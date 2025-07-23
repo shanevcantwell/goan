@@ -1,14 +1,14 @@
-# ui/switchboard_image.py
 import gradio as gr
 import logging
+from functools import partial
 
 from .enums import ComponentKey as K
 from . import (
     metadata as metadata_manager,
     event_handlers,
-    shared_state as shared_state_module,
-    workspace as workspace_manager,
+    shared_state as shared_state_module
 )
+from .switchboard_helpers import apply_updates
 
 logger = logging.getLogger(__name__)
 
@@ -16,65 +16,57 @@ def wire_events(components: dict):
     """Wires up the main image input and metadata modal events."""
     logger.info("Wiring image and metadata events...")
 
-    button_state_outputs = [
-        components[K.ADD_TASK_BUTTON],
-        components[K.PROCESS_QUEUE_BUTTON],
-        components[K.CREATE_PREVIEW_BUTTON],
-        components[K.CLEAR_IMAGE_BUTTON],
-        components[K.DOWNLOAD_IMAGE_BUTTON],
-        components[K.SAVE_QUEUE_BUTTON],
-        components[K.CLEAR_QUEUE_BUTTON],
-    ]
-    creative_ui_components = [components[key] for key in shared_state_module.CREATIVE_UI_KEYS]
+    # --- 1. Image Upload Event ---
+    # This event consolidates file drop, metadata extraction, and button state updates.
+    upload_output_keys = (
+        [
+            K.IMAGE_FILE_INPUT, K.INPUT_IMAGE_DISPLAY, K.METADATA_PROMPT_PREVIEW,
+            K.EXTRACTED_METADATA_STATE, K.METADATA_MODAL_TRIGGER_STATE,
+        ] +
+        shared_state_module.CREATIVE_UI_KEYS +
+        event_handlers.BUTTON_KEYS
+    )
+    upload_output_components = [components[k] for k in upload_output_keys]
 
-    clear_button_outputs = [
-        components[K.IMAGE_FILE_INPUT],
-        components[K.INPUT_IMAGE_DISPLAY],
-        components[K.CLEAR_IMAGE_BUTTON],
-        components[K.DOWNLOAD_IMAGE_BUTTON],
-        components[K.ADD_TASK_BUTTON],
-        components[K.EXTRACTED_METADATA_STATE]
-    ]
-
-    upload_outputs = [
-        components[K.IMAGE_FILE_INPUT],
-        components[K.INPUT_IMAGE_DISPLAY],
-        components[K.CLEAR_IMAGE_BUTTON],
-        components[K.DOWNLOAD_IMAGE_BUTTON],
-        components[K.ADD_TASK_BUTTON],
-        components[K.METADATA_PROMPT_PREVIEW],
-        components[K.EXTRACTED_METADATA_STATE],
-        components[K.METADATA_MODAL_TRIGGER_STATE],
-    #     components[K.RESUME_LATENT_PATH_STATE]
-    ] + creative_ui_components
-
+    # NOTE: This requires a new consolidated handler, `handle_image_upload`, to be created
+    # in `event_handlers.py` that combines the logic of `workspace.handle_file_drop`
+    # and `event_handlers.update_button_states`.
     (components[K.IMAGE_FILE_INPUT].upload(
-        fn=workspace_manager.handle_file_drop,
+        fn=event_handlers.handle_image_upload,
         inputs=[components[K.IMAGE_FILE_INPUT]],
-        outputs=upload_outputs
+        outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(
-        fn=event_handlers.update_button_states,
-        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
-        outputs=button_state_outputs
+        fn=partial(apply_updates, output_keys=upload_output_keys, components_map=components), # ADDED components_map
+        inputs=[components[K.HANDLER_OUTPUT_STATE]],
+        outputs=upload_output_components
     ))
 
+    # --- 2. Clear Image Event ---
+    # This event consolidates clearing the image and updating button states.
+    clear_output_keys = (
+        [
+            K.IMAGE_FILE_INPUT, K.INPUT_IMAGE_DISPLAY, K.EXTRACTED_METADATA_STATE
+        ] +
+        event_handlers.BUTTON_KEYS
+    )
+    clear_output_components = [components[k] for k in clear_output_keys]
+
+    # NOTE: This requires a new consolidated handler, `handle_clear_image`, to be created
+    # in `event_handlers.py` that combines `event_handlers.clear_image_action` and
+    # `event_handlers.update_button_states` and returns a dictionary.
     (components[K.CLEAR_IMAGE_BUTTON].click(
-        fn=event_handlers.clear_image_action, inputs=None, outputs=clear_button_outputs
+        fn=event_handlers.handle_clear_image,
+        inputs=None,
+        outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(
-        fn=event_handlers.update_button_states,
-        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
-        outputs=button_state_outputs
+        fn=partial(apply_updates, output_keys=clear_output_keys, components_map=components), # ADDED components_map
+        inputs=[components[K.HANDLER_OUTPUT_STATE]],
+        outputs=clear_output_components
     ))
 
-    # --- LoRA Recipe Save Logic ---
-    # Define the inputs for the download handler. The order is critical.
-    download_handler_inputs = [
-        components[K.INPUT_IMAGE_DISPLAY],
-        components[K.LORA_NAME],
-        components[K.LORA_WEIGHT],
-        components[K.LORA_TARGETS]
-    ] + creative_ui_components
-
+    # --- 3. Download Image Event ---
+    # This uses a JS-based download trigger, which is a standard Gradio pattern.
+    download_handler_inputs = [components[K.INPUT_IMAGE_DISPLAY]] + [components[key] for key in shared_state_module.CREATIVE_UI_KEYS]
     (components[K.DOWNLOAD_IMAGE_BUTTON].click(
         fn=event_handlers.prepare_image_for_download,
         inputs=download_handler_inputs,
@@ -84,16 +76,38 @@ def wire_events(components: dict):
         js="(file) => { document.getElementById('image_downloader_hidden_file').querySelector('a[download]').click(); }"
     ))
 
+    # --- 4. Metadata Modal Events ---
+    # a. Trigger modal visibility
     components[K.METADATA_MODAL_TRIGGER_STATE].change(
         fn=lambda x: gr.update(visible=True) if x else gr.update(visible=False),
         inputs=[components[K.METADATA_MODAL_TRIGGER_STATE]],
         outputs=[components[K.METADATA_MODAL]],
         api_name=False, queue=False
     )
+
+    # b. Confirm Metadata Button
+    # This event consolidates preprocessing, applying metadata, recalculating segments, and closing the modal.
+    confirm_metadata_output_keys = (
+        shared_state_module.CREATIVE_UI_KEYS +
+        [K.TOTAL_SEGMENTS_DISPLAY, K.METADATA_MODAL_TRIGGER_STATE]
+    )
+    confirm_metadata_output_components = [components[k] for k in confirm_metadata_output_keys]
+
+    # NOTE: This requires a new consolidated handler, `handle_confirm_metadata`, to be created
+    # in `event_handlers.py` that combines the logic from the old .then() chain.
     (components[K.CONFIRM_METADATA_BUTTON].click(
-        fn=metadata_manager.ui_load_params_from_image_metadata,
-        inputs=[components[K.EXTRACTED_METADATA_STATE]],
-        outputs=creative_ui_components
-    ).then(fn=event_handlers.ui_update_total_segments, inputs=[components[K.VIDEO_LENGTH_SLIDER], components[K.LATENT_WINDOW_SIZE_SLIDER], components[K.FPS_SLIDER]], outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
-    ).then(fn=lambda: gr.update(value=None), inputs=None, outputs=[components[K.METADATA_MODAL_TRIGGER_STATE]]))
+        fn=event_handlers.handle_confirm_metadata,
+        inputs=[
+            components[K.EXTRACTED_METADATA_STATE],
+            components[K.VIDEO_LENGTH_SLIDER], components[K.FPS_SLIDER]
+        ],
+        outputs=[components[K.HANDLER_OUTPUT_STATE]]
+    ).then(
+        fn=partial(apply_updates, output_keys=confirm_metadata_output_keys, components_map=components), # ADDED components_map
+        inputs=[components[K.HANDLER_OUTPUT_STATE]],
+        outputs=confirm_metadata_output_components
+    ))
+
+    # c. Cancel Metadata Button
     components[K.CANCEL_METADATA_BUTTON].click(fn=lambda: gr.update(value=None), inputs=None, outputs=[components[K.METADATA_MODAL_TRIGGER_STATE]])
+

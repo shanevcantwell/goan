@@ -5,8 +5,7 @@ import gradio as gr
 from gradio_modal import Modal
 
 from .enums import ComponentKey as K
-from . import workspace as workspace_manager
-from . import queue as queue_manager
+from .settings_manager import settings_manager_instance
 from . import shared_state as shared_state_module
 
 def create_ui():
@@ -30,12 +29,6 @@ def create_ui():
         padding: 4px;
     }
 
-        width: 2.0rem; /* Shrink width to give more space to the prompt column */
-        text-align: center;
-        padding: 0 2px; /* Default padding for headers */
-    }
-    #queue_df td:nth-child(-n+5) {
-        padding: 0; /* Remove padding from cells to let the link fill them entirely */
     }
 
     /* --- Fix for Queue Action Click Targets --- */
@@ -55,7 +48,7 @@ def create_ui():
         user-select: none; -webkit-user-select: none; -moz-user-select: none;
     }
 
-    /* Status Column (6): Fixed width, left-aligned, allows wrapping. */
+    /* Status Column (1): Fixed width, left-aligned, allows wrapping. */
     #queue_df th:nth-child(6), #queue_df td:nth-child(6) {
         width: 8rem; /* Wide enough for "⏳ Processing" */
         text-align: left;
@@ -63,15 +56,16 @@ def create_ui():
     }
 
     /* Prompt Column (7): Flexible width, left-aligned, truncates with ellipsis. */
-    #queue_df th:nth-child(7), #queue_df td:nth-child(7) {
+    #queue_df th:nth-child(2), #queue_df td:nth-child(2) {
         text-align: left;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        width: 40%; /* Adjust the width as needed */
+        min-width: 10rem; /* Minimum width */
+        white-space: normal; /* Allow text to wrap */
+        word-break: break-word; /* Ensure long words break */
     }
 
     /* Image (8), Length (9), ID (10) Columns: Fixed width, centered. */
-    #queue_df th:nth-child(8), #queue_df td:nth-child(8) { width: 4rem; text-align: center; }
+    #queue_df th:nth-child(3), #queue_df td:nth-child(3) { width: 4rem; text-align: center; }
     #queue_df th:nth-child(9), #queue_df td:nth-child(9) { width: 4rem; text-align: center; }
     #queue_df th:nth-child(10), #queue_df td:nth-child(10) { width: 3rem; text-align: center; }
 
@@ -190,6 +184,7 @@ def create_ui():
         })
         components[K.LORA_NAME_STATE] = gr.Textbox(visible=False, label="LoRA Names State")
         components[K.EXTRACTED_METADATA_STATE] = gr.State({})
+        components[K.HANDLER_OUTPUT_STATE] = gr.State({})
         # components[K.RESUME_LATENT_PATH_STATE] = gr.State(None)
         components[K.METADATA_MODAL_TRIGGER_STATE] = gr.Textbox(visible=False)
         # New: State component to capture the output of the preview action
@@ -201,7 +196,7 @@ def create_ui():
             components[K.METADATA_MODAL] = metadata_modal
             gr.Markdown("Image has saved parameters. Overwrite current creative settings?")
             components[K.METADATA_PROMPT_PREVIEW] = gr.Textbox(label="Detected Prompt", interactive=False, lines=5, max_lines=10)
-            components[K.METADATA_OVERWRITE_SEED_CHECKBOX] = gr.Checkbox(label="Overwrite current seed with metadata seed", value=True, scale=1)
+            # components[K.METADATA_OVERWRITE_SEED_CHECKBOX] = gr.Checkbox(label="Overwrite current seed with metadata seed", value=True, scale=1)
             with gr.Row():
                 components[K.CANCEL_METADATA_BUTTON] = gr.Button("No")
                 components[K.CONFIRM_METADATA_BUTTON] = gr.Button("Yes, Apply", variant="primary")
@@ -210,7 +205,7 @@ def create_ui():
             with gr.Column(scale=1):
                 components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
                 components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
-                components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
+                # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                 components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
                 components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
@@ -228,14 +223,11 @@ def create_ui():
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
 
         components[K.QUEUE_DF] = gr.DataFrame(
-            # headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"],
-            # datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"],
-            headers=["Status", "Prompt", "Image", "Length", "ID"],
-            datatype=["markdown", "markdown", "markdown", "str", "number"],
-            col_count=(5, "dynamic"),
-            interactive=True,
+            headers=["ID", "Status", "Prompt", "Seed", "Image"],
+            datatype=["number", "markdown", "markdown", "number", "markdown"],
             elem_id="queue_df",
-            max_height=350
+            max_height=350,
+            interactive=False # The grid itself is not interactive; actions are driven by .select()
         )
         with gr.Row():
             components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", size="sm", interactive=False)
@@ -302,8 +294,11 @@ def create_ui():
                     components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1)
                     components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1)
                     components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False)
-                    components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(label="Output Folder", value=workspace_manager.outputs_folder)
-                    components[K.SAVE_AS_DEFAULT_BUTTON] = gr.Button("Save as Default", variant="secondary")
+                    components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(
+                        label="Output Folder",
+                        value=settings_manager_instance.get_initial_output_folder()
+                    )
+                    components[K.SAVE_AS_DEFAULT_WORKSPACE_BUTTON] = gr.Button("Save as Default Workspace", variant="secondary")
                     components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required** for new output path to take effect.", visible=False)
             with gr.Column(scale=2):
                 with gr.Row(equal_height=True):

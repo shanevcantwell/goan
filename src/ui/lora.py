@@ -11,10 +11,10 @@ from core import model_loader # Import model_loader
 from .enums import ComponentKey as K
 from .shared_state import shared_state_instance
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-LORA_DIR = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'loras')))
+# Place the 'loras' directory in the project root, two levels up from 'src/ui/'
+LORA_DIR = os.path.abspath(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'loras')))
 os.makedirs(LORA_DIR, exist_ok=True)
 
 def list_loras():
@@ -285,14 +285,20 @@ class LoRAManager:
 
 def handle_lora_upload_and_update_ui(app_state, uploaded_file):
     if uploaded_file is None:
-        return app_state, "", gr.update(visible=False), "", 1.0, []
-    
+        return {
+            K.APP_STATE: app_state,
+            K.LORA_NAME_STATE: "",
+            K.LORA_ROW: gr.update(visible=False),
+            K.LORA_NAME: gr.update(value=""),
+            K.LORA_WEIGHT: gr.update(value=1.0),
+            K.LORA_TARGETS: gr.update(value=[])
+        }    
     lora_name = os.path.basename(uploaded_file.name)
     persistent_path = os.path.join(LORA_DIR, lora_name)
-    
+
     os.makedirs(os.path.dirname(persistent_path), exist_ok=True)
     shutil.copy(uploaded_file.name, persistent_path)
-    
+
     logger.info(f"Saved LoRA file to: {persistent_path}")
     
     # Clear any previously loaded LoRA state to ensure a fresh start
@@ -302,4 +308,11 @@ def handle_lora_upload_and_update_ui(app_state, uploaded_file):
     app_state.setdefault("lora_state", {}).setdefault("loaded_loras", {})[lora_name] = {"path": persistent_path}
     
     gr.Info(f"Loaded '{lora_name}'.")
-    return app_state, lora_name, gr.update(visible=True), gr.update(value=lora_name), gr.update(value=0.8), gr.update(value=["transformer"])
+    return {
+        K.APP_STATE: app_state,
+        K.LORA_NAME_STATE: lora_name,
+        K.LORA_ROW: gr.update(visible=True),
+        K.LORA_NAME: gr.update(value=lora_name),
+        K.LORA_WEIGHT: gr.update(value=0.8),
+        K.LORA_TARGETS: gr.update(value=["transformer"])
+    }

@@ -1,57 +1,58 @@
-# ui/switchboard_helpers.py
-# Contains helper functions to simplify event wiring in switchboard modules.
-import logging
+# src/ui/switchboard_helpers.py
 import gradio as gr
-from .enums import ComponentKey as K
-from . import event_handlers
+import logging
+from typing import Dict, List, Any
 
+from src.ui.enums import ComponentKey
 logger = logging.getLogger(__name__)
 
-def chain_event_updates(event, components: dict, update_segments: bool = False):
+def apply_updates(update_dict: Dict[ComponentKey, Any], output_keys: List[ComponentKey], components_map: Dict[ComponentKey, gr.Component]) -> Any:
     """
-    Chains standard UI updates (buttons, segments) to a Gradio event.
-    This helps to keep the switchboard modules DRY.
+    A helper function that serves two critical roles in the application's UI architecture.
 
-    Args:
-        event: The Gradio event object to chain to (e.g., the result of a .click()).
-        components (dict): The dictionary of all UI components.
-        update_segments (bool): If True, chains the segment count update as well.
+    It returns a list of updates for multiple outputs, or a single update object
+    for a single output, to comply with Gradio's event return value requirements.
+    This prevents `AttributeError` crashes when a single-item list is returned
+    for a single output component (e.g., a `gr.Markdown` component).
+
+    1.  **Architectural Bridge**: It enables the "Handler-Returns-Dict" pattern. Gradio's
+        event system requires a handler to return a list of updates in a specific,
+        fixed order. This function acts as a bridge, taking an order-agnostic
+        dictionary from a handler and an ordered list of component keys from the
+        switchboard, and producing the correctly ordered list of updates that Gradio expects.
+        This decouples business logic from UI layout, making the code more robust.
+
+    2.  **Tactical Bug Fix**: It contains a workaround for a specific Gradio behavior
+        where `gr.Number` and `gr.Slider` components might receive the `gr.update()`
+        dict itself (e.g., `{'__type__': 'update', 'value': 42}`) instead of its
+        'value' when passed through a `gr.State` component in a `.then()` chain. This
+        causes a `TypeError`. The function inspects the target component and, if it's
+        a Number or Slider, manually extracts the raw value from the update object.
     """
-    button_state_outputs = event_handlers.get_button_state_outputs(components)
+    if not isinstance(update_dict, dict):
+        logger.warning(f"apply_updates expected a dict but got {type(update_dict)}. Returning no-op updates.")
+        updates = [gr.update() for _ in output_keys]
+        return updates[0] if len(updates) == 1 else updates
 
-    # Wrapper to absorb the payload from the preceding event.
-    # The `update_button_states` function expects only one argument (the image),
-    # but `event.then()` passes the event's output *before* the specified inputs.
-    # This wrapper correctly calls the handler with only the argument it needs.
-    def button_state_update_wrapper(*args):
-        # The input_image_display value is the last argument.
-        input_image_pil = args[-1]
-        return event_handlers.update_button_states(input_image_pil)
+    result_list = []
+    for key in output_keys:
+        # Get the update object for the current key, defaulting to a no-op update.
+        update_obj = update_dict.get(key, gr.update())
 
-    event.then(
-        fn=button_state_update_wrapper,
-        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
-        outputs=button_state_outputs
-    )
-    if update_segments:
-        segment_recalc_inputs = [
-            components[K.VIDEO_LENGTH_SLIDER],
-            components[K.LATENT_WINDOW_SIZE_SLIDER],
-            components[K.FPS_SLIDER]
-        ]
+        # Default to passing the update object (or raw value) as is.
+        value_to_append = update_obj
 
-        # The wrapper function is robustly designed to handle the event payload.
-        # It accepts any number of arguments from the preceding event's output (*args)
-        # and then calls the target function with only the specific inputs it needs.
-        def segment_update_wrapper(*args):
-            # The component values from `inputs` are always the last arguments.
-            video_length, latent_window_size, fps = args[-len(segment_recalc_inputs):]
-            return event_handlers.ui_update_total_segments(video_length, latent_window_size, fps)
+        # Check for the specific Gradio workaround condition.
+        is_gradio_update = isinstance(update_obj, dict) and update_obj.get('__type__') == 'update'
+        if is_gradio_update and key in components_map:
+            target_component = components_map[key]
+            if isinstance(target_component, (gr.Number, gr.Slider)):
+                # For Number/Slider, we must extract the raw value from the update object.
+                value_to_append = update_obj.get('value')
 
-        event.then(
-            fn=segment_update_wrapper,
-            # The `inputs` list should only contain UI components. The output from the
-            # preceding `event` is piped implicitly as the first arguments to the function.
-            inputs=segment_recalc_inputs,
-            outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
-        )
+        result_list.append(value_to_append)
+
+    # If there's only one output, return the single update object directly.
+    # Otherwise, return the list of updates. This is crucial for Gradio's
+    # handling of single vs. multiple outputs.
+    return result_list[0] if len(result_list) == 1 else result_list

@@ -1,4 +1,3 @@
-# ui/event_handlers.py
 import gradio as gr
 import time
 import tempfile
@@ -11,6 +10,9 @@ from . import workspace as workspace_manager
 from . import queue as queue_actions # Use queue.py as the source for actions
 from .enums import ComponentKey as K
 from .queue_manager import queue_manager_instance
+
+LATENT_WINDOW_SIZE = 9  # FramePack standard, for future experimentation
+
 logger = logging.getLogger(__name__)
 
 def safe_shutdown_action(app_state, *ui_values):
@@ -20,46 +22,115 @@ def safe_shutdown_action(app_state, *ui_values):
     workspace_manager.save_ui_and_image_for_refresh(*ui_values)
     gr.Info("Queue and UI state saved. It is now safe to close the terminal.")
 
-def ui_update_total_segments(total_seconds_ui, latent_window_size_ui, fps_ui):
-    """Calculates and displays the number of segments based on video length."""
+def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
+    """Calculates the number of segments and returns a dictionary update."""
+
+    # Defensively extract the value if the input is a Gradio update dict.
+    # This handles cases where Gradio might pass gr.update() objects directly
+    # or if the function is called with them from another handler.
+    if isinstance(total_seconds_ui, dict) and '__type__' in total_seconds_ui and total_seconds_ui['__type__'] == 'update':
+        total_seconds_ui = total_seconds_ui.get('value')
+    if isinstance(fps_ui, dict) and '__type__' in fps_ui and fps_ui['__type__'] == 'update':
+        fps_ui = fps_ui.get('value')
+
+    latent_window_size = LATENT_WINDOW_SIZE
     try:
-        logger.debug(f"ui_update_total_segments received: total_seconds_ui={total_seconds_ui}, latent_window_size_ui={latent_window_size_ui}, fps_ui={fps_ui}")
+        logger.debug(f"ui_update_total_segments received: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui} (latent_window_size={latent_window_size})")
         total_frames = int(total_seconds_ui * fps_ui)
-        frames_per_segment = latent_window_size_ui * 4 - 3
+        frames_per_segment = latent_window_size * 4 - 3
         total_segments = int(max(round(total_frames / frames_per_segment), 1)) if frames_per_segment > 0 else 1
-        return f"Calculated: {total_segments} Segments, {total_frames} Total Frames"
+        update_text = f"Calculated: {total_segments} Segments, {total_frames} Total Frames"
     except (TypeError, ValueError):
-        logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, latent_window_size_ui={latent_window_size_ui}, fps_ui={fps_ui}", exc_info=True)
-        return "Segments: Invalid input"
+        logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
+        update_text = "Segments: Invalid input"
+    return {K.TOTAL_SEGMENTS_DISPLAY: gr.update(value=update_text)}
 
-def clear_image_action():
-    """Clears the input image and resets associated UI components."""
-    return (
-        gr.update(value=None, visible=True),
-        gr.update(visible=False, value=None),
-        gr.update(interactive=False, variant="secondary"), # CLEAR_IMAGE_BUTTON
-        gr.update(interactive=False, variant="secondary"), # DOWNLOAD_IMAGE_BUTTON
-        gr.update(variant="secondary"), # ADD_TASK_BUTTON
-        {} # For extracted_metadata_state
-    )
+def handle_image_upload(temp_file_data: any) -> dict:
+    """
+    Consolidated handler for image uploads. It processes the image, extracts
+    metadata, and updates all relevant UI components, including button states.
+    """
+    updates = {}
+    pil_image = None
+    filepath = None
 
-def prepare_image_for_download(pil_image, lora_name, lora_weight, lora_targets, *creative_values):
-    """Injects metadata, including LoRA settings, into the current image and prepares it for download."""
+    if isinstance(temp_file_data, str):
+        filepath = temp_file_data
+    elif hasattr(temp_file_data, 'name'):
+        filepath = temp_file_data.name
+
+    if filepath:
+        try:
+            pil_image = Image.open(filepath)
+            updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=pil_image, visible=True)
+            updates[K.IMAGE_FILE_INPUT] = gr.update(visible=False)
+
+            params = metadata_manager.extract_metadata_from_pil_image(pil_image)
+            if params:
+                updates[K.EXTRACTED_METADATA_STATE] = params
+                updates[K.METADATA_PROMPT_PREVIEW] = params.get('prompt', '')
+                updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=str(time.time()))
+        except Exception as e:
+            gr.Warning(f"Could not load file as an image: {e}")
+            pil_image = None # Ensure image is None on failure
+            updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=None, visible=False)
+            updates[K.IMAGE_FILE_INPUT] = gr.update(visible=True, value=None)
+
+    # Update button states based on whether an image is present
+    button_updates = update_button_states(pil_image)
+    updates.update(button_updates)
+    return updates
+
+def handle_clear_image() -> dict:
+    """
+    Consolidated handler for clearing the image. It resets the image UI
+    and updates all relevant button states.
+    """
+    updates = {
+        K.IMAGE_FILE_INPUT: gr.update(value=None, visible=True),
+        K.INPUT_IMAGE_DISPLAY: gr.update(visible=False, value=None),
+        K.EXTRACTED_METADATA_STATE: {}
+    }
+    # Get the button states for when there is no image
+    button_updates = update_button_states(input_image_pil=None)
+    updates.update(button_updates)
+    return updates
+
+def handle_confirm_metadata(metadata_dict, current_video_len, current_fps) -> dict:
+    """
+    Consolidated handler for applying image metadata. It updates creative UI,
+    recalculates segments, and closes the modal.
+    """
+    # 1. Get a dictionary of raw, typed parameter values from the metadata.
+    #    The `ui_load_params_from_image_metadata` function is responsible for
+    #    parsing and type-casting the values from the image's metadata dict.
+    creative_params_from_metadata = metadata_manager.ui_load_params_from_image_metadata(metadata_dict)
+
+    # 2. Determine the new values for segment calculation
+    #    Use the value from metadata if present, otherwise use the current UI value.
+    #    This is safe because creative_params_from_metadata contains raw values.
+    new_video_len = creative_params_from_metadata.get(K.VIDEO_LENGTH_SLIDER, current_video_len)
+    new_fps = creative_params_from_metadata.get(K.FPS_SLIDER, current_fps)
+
+    # 3. Combine all updates
+    #    First, convert the dictionary of raw parameters into a dictionary of gr.update() objects.
+    final_updates = {key: gr.update(value=value) for key, value in creative_params_from_metadata.items()}
+
+    #    Then, add the segment calculation updates.
+    final_updates.update(ui_update_total_segments(new_video_len, new_fps))
+
+    #    Finally, add the modal close update.
+    final_updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=None) # Close modal
+    return final_updates
+
+def prepare_image_for_download(pil_image, *creative_values):
+    """Injects creative parameter metadata into the current image and prepares it for download."""
     if not isinstance(pil_image, Image.Image):
         gr.Warning("No valid image to download.")
         return None
 
-    # Get the keys for the creative values, which are passed as a tuple
-    creative_keys = list(workspace_manager.get_default_values_map().keys())
-    params_dict = metadata_manager.create_params_from_ui(creative_keys, creative_values)
-
-    # Add LoRA data if a LoRA is selected, using the future-proof list-of-objects schema.
-    if lora_name:
-        params_dict['loras'] = [{
-            "name": lora_name,
-            "weight": lora_weight,
-            "targets": lora_targets
-        }]
+    # Create the parameters dictionary from the creative UI controls.
+    params_dict = metadata_manager.create_params_from_ui(shared_state_module.CREATIVE_UI_KEYS, creative_values)
 
     pnginfo_obj = metadata_manager.create_pnginfo_obj(params_dict)
     image_copy = pil_image.copy() # Use a copy to avoid modifying the displayed image's info
@@ -81,34 +152,18 @@ def optimistic_process_button_update():
     else:
         # We are not processing, so this click is a START request.
         return gr.update(interactive=False, value="Starting...", variant="secondary")
-/* old
-def toggle_manual_preview_action():
-    """
-    Toggles the manual preview request flag in shared state and provides
-    optimistic UI feedback on the button itself. The backend worker is
-    responsible for reading this flag and clearing it after use.
-    """
-    if shared_state_module.shared_state_instance.preview_request_flag.is_set():
-        shared_state_module.shared_state_instance.preview_request_flag.clear()
-        return gr.update(value="📸 Generate a preview for the currently processing segment")
-    else:
-        shared_state_module.shared_state_instance.preview_request_flag.set()
-        return gr.update(value="Cancel Preview Request")
-*/
 
-
-def toggle_manual_preview_action():
+def toggle_manual_preview_action(input_image_pil):
     """
     Toggles the manual preview request flag in shared state.
-    The UI update is handled by the chained update_button_states call,
-    which acts as the single source of truth for button states.
+    Returns a dictionary of button state updates.
     """
     if shared_state_module.shared_state_instance.preview_request_flag.is_set():
         shared_state_module.shared_state_instance.preview_request_flag.clear()
     else:
         shared_state_module.shared_state_instance.preview_request_flag.set()
-    # Return a no-op update. The real update comes from the chained call.
-    return gr.update()
+    # Return a dictionary of updates for all buttons.
+    return update_button_states(input_image_pil)
 
 # Define the button keys in a fixed order for consistent output.
 BUTTON_KEYS = [

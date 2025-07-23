@@ -73,47 +73,46 @@ def open_and_check_metadata(temp_filepath: str):
         gr.Warning(f"Could not open image. It may be corrupt or an unsupported format. Error: {e}")
         return None, "", {}
 
-def ui_load_params_from_image_metadata(extracted_metadata: dict, overwrite_seed: bool) -> list:
+def ui_load_params_from_image_metadata(extracted_metadata: dict) -> dict:
     """
     Loads creative parameters from a metadata dictionary, performing necessary
-    type conversions, and returns UI updates. This mirrors the logic from
-    workspace.py to fix the UI not updating.
+    type conversions.
+
+    Returns a dictionary of raw, typed values suitable for use in other handlers
+    or for creating gr.update() objects. This avoids double-wrapping update objects.
     """
     param_to_ui_map = {v: k for k, v in shared_state_module.UI_TO_WORKER_PARAM_MAP.items()}
     updates_dict = {}
 
-    if extracted_metadata:
-        # Centralize legacy conversion by calling the dedicated helper.
-        legacy_support.convert_legacy_worker_params(extracted_metadata)
+    if not extracted_metadata:
+        return {}
 
-        gr.Info("Applying creative settings from image...")
-        for param_key, value in extracted_metadata.items():
-            if param_key in param_to_ui_map:
-                ui_key = param_to_ui_map[param_key]
-                if ui_key in shared_state_module.CREATIVE_UI_KEYS:
-                    original_value = value
-                    try:
-                        # Sliders expecting integers
-                        if ui_key in ['seed_ui', 'steps_ui', 'preview_frequency_ui']:
-                            # Use float() first to gracefully handle numbers like 25.0
-                            value = int(float(value))
-                        # Sliders expecting floats
-                        elif ui_key in ['total_second_length_ui', 'cfg_ui', 'gs_ui', 'rs_ui', 'gs_final_ui']:
-                            value = float(value)
-                        # The radio button now expects a string, which it gets directly
-                        # after the legacy conversion. No special handling needed here.
-                        # Update the dictionary with the correctly typed value
-                        updates_dict[ui_key] = gr.update(value=value)
+    legacy_support.convert_legacy_worker_params(extracted_metadata)
+    gr.Info("Applying creative settings from image...")
 
-                    except (ValueError, TypeError):
-                        gr.Warning(f"Invalid value '{original_value}' for {ui_key} in image metadata. Skipping.")
-                        # If conversion fails, we skip this parameter and do not update it.
-                        continue
+    for param_key, value in extracted_metadata.items():
+        if param_key not in param_to_ui_map:
+            continue
 
-    # Construct the final list of updates in the correct order, sending an
-    # update only for the components we found in the metadata.
-    final_updates = [updates_dict.get(key, gr.update()) for key in shared_state_module.CREATIVE_UI_KEYS]
-    return final_updates
+        ui_key = param_to_ui_map[param_key]
+        if ui_key not in shared_state_module.CREATIVE_UI_KEYS:
+            continue
+
+        original_value = value
+        try:
+            # if ui_key in [K.SEED, K.STEPS_SLIDER, K.PREVIEW_FREQUENCY_SLIDER, K.ROLL_OFF_START_SLIDER, K.FPS_SLIDER]:
+            if ui_key in [K.SEED, K.ROLL_OFF_START_SLIDER, K.FPS_SLIDER]:
+                typed_value = int(float(value))
+            elif ui_key in [K.VIDEO_LENGTH_SLIDER, K.REAL_CFG_SLIDER, K.DISTILLED_CFG_START_SLIDER, K.GUIDANCE_RESCALE_SLIDER, K.DISTILLED_CFG_END_SLIDER, K.ROLL_OFF_FACTOR_SLIDER]:
+                typed_value = float(value)
+            else: # For strings like prompts and radio buttons
+                typed_value = value
+            # Return the raw typed value, not a gr.update object. The calling handler is responsible for wrapping.
+            updates_dict[ui_key] = typed_value
+        except (ValueError, TypeError):
+            gr.Warning(f"Invalid value '{original_value}' for {ui_key} in image metadata. Skipping.")
+
+    return updates_dict
 
 def create_params_from_ui(ui_keys: list, ui_values: tuple) -> dict:
     """

@@ -13,8 +13,66 @@ import html
 
 from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
+from .enums import ComponentKey as K
+from .settings_manager import settings_manager_instance
+from . import event_handlers
 
 logger = logging.getLogger(__name__)
+
+def create_queue_zip(zip_file_path: str, queue: list) -> bool:
+    """
+    Creates a zip archive from a list of queue tasks, including a manifest
+    and any associated images.
+
+    Args:
+        zip_file_path (str): The full path where the zip file should be saved.
+        queue (list): The list of task dictionaries to save.
+
+    Returns:
+        bool: True if the zip file was created successfully, False otherwise.
+    """
+    try:
+        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            queue_manifest = []
+            for task in queue:
+                params_copy = task['params'].copy()
+                input_image_np = params_copy.pop('input_image', None)
+                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
+                if input_image_np is not None:
+                    img_filename = f"task_{task['id']}_input.png"
+                    manifest_entry['image_ref'] = img_filename
+                    img = Image.fromarray(input_image_np)
+                    with io.BytesIO() as buf:
+                        img.save(buf, format='PNG')
+                        zf.writestr(img_filename, buf.getvalue())
+                queue_manifest.append(manifest_entry)
+            zf.writestr(shared_state_module.QUEUE_STATE_JSON_IN_ZIP, json.dumps(queue_manifest, indent=4))
+        return True
+    except Exception as e:
+        logger.error(f"Error creating queue zip file at {zip_file_path}: {e}", exc_info=True)
+        return False
+
+def generate_cancel_edit_mode_updates_dict() -> dict:
+    """Generates a dictionary of UI updates to reset the UI and exit edit mode."""
+    updates = {}
+
+    # Reset main UI controls to their default values
+    default_values_map = settings_manager_instance.get_default_values_map()
+    for key in shared_state_module.ALL_TASK_UI_KEYS:
+        updates[key] = gr.update(value=default_values_map.get(key))
+
+    # Update queue display
+    updates[K.QUEUE_DF] = update_queue_df_display()
+
+    # Reset image display
+    updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=None, visible=False)
+    updates[K.IMAGE_FILE_INPUT] = gr.update(visible=True, value=None)
+
+    # Get button states for when there is no image and no task being edited
+    button_updates = event_handlers.update_button_states(input_image_pil=None)
+    updates.update(button_updates)
+
+    return updates
 
 def np_to_base64_uri(np_array_or_tuple, format="png"):
     """Converts a NumPy array to a base64 data URI for embedding in HTML/Markdown."""
@@ -110,14 +168,23 @@ def update_queue_df_display():
         is_processing_current_task = processing and i == 0
         is_editing_current_task = editing_task_id == task_id
         is_pending = status == 'pending'
+        
+        # --- Action Button Visibility Logic ---
+        # This logic determines if the action icons in the queue are clickable.
+        # The backend handlers provide a second layer of enforcement.
+        is_first_task = (i == 0)
+        is_last_task = (i == total_tasks - 1)
 
-        # Refined logic: Allow reordering of pending tasks below the currently
-        # processing task, but prevent any task from being moved into slot 0.
-        up_enabled = is_pending and i > (1 if processing else 0)
-        down_enabled = is_pending and not is_processing_current_task and i < (total_tasks - 1)
+        # Move controls are disabled entirely if processing is active to prevent race conditions.
+        can_move = is_pending and not processing
+        up_enabled = can_move and not is_first_task
+        down_enabled = can_move and not is_last_task
+
+        # Pause is only available for the currently processing task.
         pause_enabled = is_processing_current_task
-        # Can edit if pending and not the currently processing task.
-        edit_enabled = is_pending and not is_processing_current_task
+
+        # Edit is punted for this release.
+        edit_enabled = False
         cancel_enabled = is_pending or is_processing_current_task
 
         up_arrow = _button_markdown('⬆️', up_enabled)
@@ -147,9 +214,8 @@ def update_queue_df_display():
         else: status_display = "⏸️ Pending"
 
         data.append([
-            up_arrow, down_arrow, pause_button, edit_button, cancel_button,
             status_display, prompt_cell, img_md, f"{params.get('video_length', 0):.1f}s", task_id
         ])
 
     # Return an empty DataFrame with the correct headers if the queue is empty
-    return gr.update(value=data) if data else gr.update(value=[], headers=["", "", "", "", "", "Status", "Prompt", "Image", "Length", "ID"], datatype=["markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "markdown", "str", "number"], col_count=(10, "dynamic"))
+    return gr.update(value=data) if data else gr.update(value=[], headers=["Status", "Prompt", "Image", "Length", "ID"], datatype=["markdown", "markdown", "markdown", "str", "number"], col_count=(5, "dynamic"))

@@ -1,13 +1,14 @@
-# ui/switchboard_startup.py
-import gradio as gr
 import logging
+from functools import partial
 
+import gradio as gr
 from .enums import ComponentKey as K
 from . import (
-    workspace as workspace_manager,
+    session_manager,
     event_handlers,
-    shared_state as shared_state_module
+    shared_state as shared_state_module,
 )
+from .switchboard_helpers import apply_updates
 
 logger = logging.getLogger(__name__)
 
@@ -16,45 +17,30 @@ def wire_events(components: dict):
     logger.info("Wiring app startup and shutdown events...")
     block = components[K.BLOCK]
 
-    workspace_ui_outputs = [components[key] for key in shared_state_module.ALL_TASK_UI_KEYS]
-    image_ui_outputs = [
-        components[K.INPUT_IMAGE_DISPLAY],
-        components[K.CLEAR_IMAGE_BUTTON],
-        components[K.DOWNLOAD_IMAGE_BUTTON],
-        components[K.IMAGE_FILE_INPUT]
-    ]
-    button_state_outputs = [
-        components[K.ADD_TASK_BUTTON],
-        components[K.PROCESS_QUEUE_BUTTON],
-        components[K.CREATE_PREVIEW_BUTTON],
-        components[K.CLEAR_IMAGE_BUTTON],
-        components[K.DOWNLOAD_IMAGE_BUTTON],
-        components[K.SAVE_QUEUE_BUTTON],
-        components[K.CLEAR_QUEUE_BUTTON],
-    ]
+    # Define the list of output keys for the startup event.
+    startup_output_keys = (
+        shared_state_module.ALL_TASK_UI_KEYS +
+        [
+            K.INPUT_IMAGE_DISPLAY, K.CLEAR_IMAGE_BUTTON, K.DOWNLOAD_IMAGE_BUTTON, K.IMAGE_FILE_INPUT
+        ] +
+        event_handlers.BUTTON_KEYS +
+        [K.TOTAL_SEGMENTS_DISPLAY]
+    )
+    startup_output_components = [components[key] for key in startup_output_keys]
 
-    settings_path, image_path = gr.State(), gr.State()
+    # On startup, the handler returns a dictionary of all UI updates.
+    # The .then() block uses the apply_updates helper to map this dictionary
+    # to the correct list of output components.
     (block.load(
-        fn=workspace_manager.load_workspace_on_start,
+        fn=session_manager.load_and_apply_workspace_on_start,
         inputs=None,
-        outputs=[settings_path, image_path]
+        outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(
-        fn=workspace_manager.load_settings_from_file,
-        inputs=[settings_path],
-        outputs=workspace_ui_outputs
-    ).then(
-        fn=workspace_manager.load_image_from_path,
-        inputs=[image_path],
-        outputs=image_ui_outputs
-    ).then(
-        fn=event_handlers.ui_update_total_segments,
-        inputs=[components[K.VIDEO_LENGTH_SLIDER], components[K.LATENT_WINDOW_SIZE_SLIDER], components[K.FPS_SLIDER]],
-        outputs=[components[K.TOTAL_SEGMENTS_DISPLAY]]
-    ).then(
-        fn=event_handlers.update_button_states,
-        inputs=[components[K.INPUT_IMAGE_DISPLAY]],
-        outputs=button_state_outputs
+        fn=partial(apply_updates, output_keys=startup_output_keys, components_map=components), # ADDED components_map
+        inputs=[components[K.HANDLER_OUTPUT_STATE]],
+        outputs=startup_output_components
     ))
 
-    shutdown_inputs = [components[K.INPUT_IMAGE_DISPLAY]] + workspace_ui_outputs
+    # Wire shutdown event
+    shutdown_inputs = [components[K.INPUT_IMAGE_DISPLAY]] + [components[key] for key in shared_state_module.ALL_TASK_UI_KEYS]
     # components[K.SHUTDOWN_BUTTON].click(fn=event_handlers.safe_shutdown_action, inputs=[components[K.APP_STATE]] + shutdown_inputs, outputs=None, visible=False)

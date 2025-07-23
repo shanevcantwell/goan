@@ -16,7 +16,8 @@ import logging
 from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 from .enums import ComponentKey as K
-from . import workspace as workspace_manager
+from . import event_handlers
+from .settings_manager import settings_manager_instance
 from . import queue_helpers, agents
 
 logger = logging.getLogger(__name__)
@@ -31,29 +32,12 @@ def autosave_queue_on_exit_action():
     if not queue:
         logger.info("Queue is empty, nothing to autosave.")
         return
-    try:
-        filename = AUTOSAVE_FILENAME_PATTERN.format(os.getpid())
-        autosave_path = os.path.join(tempfile.gettempdir(), filename)
-        with zipfile.ZipFile(autosave_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            queue_manifest = []
-            for task in queue:
-                params_copy = task['params'].copy()
-                input_image_np = params_copy.pop('input_image', None)
-                # Save the actual status of the task to preserve the state of the queue at the time of saving.
-                # The status will be reset to 'pending' on load.
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
-                if input_image_np is not None:
-                    img_filename = f"task_{task['id']}_input.png"
-                    manifest_entry['image_ref'] = img_filename
-                    img = Image.fromarray(input_image_np)
-                    with io.BytesIO() as buf:
-                        img.save(buf, format='PNG')
-                        zf.writestr(img_filename, buf.getvalue())
-                queue_manifest.append(manifest_entry)
-            zf.writestr(shared_state_module.QUEUE_STATE_JSON_IN_ZIP, json.dumps(queue_manifest, indent=4))
+    filename = AUTOSAVE_FILENAME_PATTERN.format(os.getpid())
+    autosave_path = os.path.join(tempfile.gettempdir(), filename)
+    if queue_helpers.create_queue_zip(autosave_path, queue):
         logger.info(f"Successfully autosaved queue with {len(queue)} tasks to {autosave_path}.")
-    except Exception as e:
-        logger.error(f"Error during queue autosave: {e}", exc_info=True)
+    else:
+        logger.error("Failed to autosave queue.")
 
 # This mapping must match the header order in layout.py
 ACTION_COLUMN_MAP = {
@@ -64,21 +48,20 @@ ACTION_COLUMN_MAP = {
     4: 'cancel'
 }
 
-def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
+def add_or_update_task_in_queue(*args_from_ui_controls_tuple) -> dict:
     """
     Adds a new task to the queue or updates an existing one if in edit mode.
+    Returns a dictionary of UI updates.
     """
     # The first argument is always the input image PIL object.
     input_image_pil = args_from_ui_controls_tuple[0]
 
     if not input_image_pil:
         gr.Warning("Input image is required!")
-        # Return no-op updates for all expected outputs.
-        return [gr.update()] * (len(shared_state_module.ALL_TASK_UI_KEYS) + 8)
+        return {}
 
     # The rest of the arguments are the UI control values.
     all_ui_values_tuple = args_from_ui_controls_tuple[1:]
-    default_keys_map = workspace_manager.get_default_values_map()
     # Use ALL_TASK_UI_KEYS to ensure the order and completeness of parameters.
     params_from_ui = dict(zip(shared_state_module.ALL_TASK_UI_KEYS, all_ui_values_tuple))
     base_params_for_worker_dict = {
@@ -93,14 +76,12 @@ def add_or_update_task_in_queue(*args_from_ui_controls_tuple):
         return cancel_edit_mode_action()
     else:
         queue_manager_instance.add_task(base_params_for_worker_dict, img_np_data)
-        # After adding, just update the queue display and let other components be.
-        # The switchboard expects a specific number of outputs, so we provide gr.update() placeholders.
-        num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
-        updates = [gr.update()] * num_outputs
-        # Index 0 is APP_STATE, Index 1 is QUEUE_DF
-        updates[1] = queue_helpers.update_queue_df_display() # Index 1 is the queue dataframe
+        # After adding, the image is still present. Get button states for that.
+        button_updates = event_handlers.update_button_states(input_image_pil=input_image_pil)
+        updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
+        updates.update(button_updates)
         return updates
-    
+
 def add_resumable_task_from_zip(filepath: str):
     """
     Loads a .goan_resume file, extracts its contents, and adds a new task
@@ -139,39 +120,27 @@ def add_resumable_task_from_zip(filepath: str):
         logger.error(f"Failed to process resume file '{filepath}': {e}", exc_info=True)
         return gr.update(), gr.update()
 
-def cancel_edit_mode_action():
-    """Resets the UI to its default state and exits edit mode."""
+def cancel_edit_mode_action() -> dict:
+    """
+    Resets the UI to its default state and exits edit mode.
+    This is a thin wrapper around the helper function.
+    """
     queue_manager_instance.set_editing_task(None)
-    default_values_map = workspace_manager.get_default_values_map()
-    ui_updates = [gr.update(value=default_values_map.get(key)) for key in shared_state_module.ALL_TASK_UI_KEYS]
+    return queue_helpers.generate_cancel_edit_mode_updates_dict()
 
-    # This function returns updates for the `add_task_outputs` list in the switchboard.
-    # It's called after updating a task or when the "Cancel Edit" button is clicked.
-    # The order of updates must match the switchboard's `add_task_outputs` list.
-    final_updates = (
-        [gr.update(), queue_helpers.update_queue_df_display(), gr.update(value=None, visible=False), gr.update(visible=True, value=None)] +
-        ui_updates +
-        [gr.update(), gr.update(), gr.update(value="Add Task to Queue", variant="secondary"), gr.update(visible=False)]
-    )
-    return final_updates
-
-def handle_queue_action_on_select(evt: gr.SelectData):
+def handle_queue_action_on_select(evt: gr.SelectData) -> dict:
     """
     Handles user clicks on action icons within the queue DataFrame.
-    This version has the corrected signature to properly receive the event data as a positional argument.
+    Returns a dictionary of UI updates.
     """
-    # The number of outputs must match the switchboard's `select_q_outputs` list.
-    num_outputs = len(shared_state_module.ALL_TASK_UI_KEYS) + 8
-    # Guard against missing event data, which can happen on UI refresh/desync.
-    # The `evt: gr.SelectData` type hint ensures Gradio passes the event data correctly.
     if evt.index is None:
-        return [gr.update()] * num_outputs
+        return {}
 
     row_index, col_index = evt.index
 
     if col_index not in ACTION_COLUMN_MAP:
         logger.debug(f"Click on non-action column ({col_index}), ignoring.")
-        return [gr.update()] * num_outputs
+        return {}
 
     action = ACTION_COLUMN_MAP[col_index]
     queue_state = queue_manager_instance.get_state()
@@ -179,7 +148,7 @@ def handle_queue_action_on_select(evt: gr.SelectData):
 
     if not (0 <= row_index < len(queue)):
         logger.warning(f"Invalid row index {row_index} for queue action.")
-        return [gr.update()] * num_outputs
+        return {}
 
     task = queue[row_index]
     task_id = task['id']
@@ -194,17 +163,17 @@ def handle_queue_action_on_select(evt: gr.SelectData):
     # --- Backend Enforcement of Disabled State ---
     if action in ['move_up', 'move_down', 'edit'] and not is_pending:
         gr.Info(f"Cannot '{action}' a task that is not 'Pending'.")
-        return [gr.update()] * num_outputs
+        return {}
     if is_processing_globally:
         if action == 'move_up' and row_index <= 1:
             gr.Info("Cannot move a task into the 'currently processing' slot.")
-            return [gr.update()] * num_outputs
+            return {}
         if action in ['move_down', 'edit'] and row_index == 0:
             gr.Info(f"Cannot '{action}' the currently processing task.")
-            return [gr.update()] * num_outputs
+            return {}
     if action == 'pause' and not is_processing:
         gr.Info("Can only pause a task that is currently 'Processing'.")
-        return [gr.update()] * num_outputs
+        return {}
 
     # --- Handle Action ---
     if action == "move_up":
@@ -217,7 +186,7 @@ def handle_queue_action_on_select(evt: gr.SelectData):
             gr.Info(f"Requesting cancellation for currently processing task {task_id}...")
             agents.ProcessingAgent().send({"type": "cancel_task"})
             # The agent will send UI updates when the task is stopped.
-            return [gr.update()] * num_outputs
+            return {}
         else:
             removed_id = queue_manager_instance.remove_task(row_index)
             if removed_id is not None and queue_state.get("editing_task_id") == removed_id:
@@ -228,37 +197,38 @@ def handle_queue_action_on_select(evt: gr.SelectData):
     elif action == "edit":
         task_to_edit = queue_manager_instance.get_task_to_edit(row_index)
         if not task_to_edit:
-            return [gr.update()] * num_outputs
+            return {}
 
         params_to_load_to_ui = task_to_edit['params']
         img_np_from_task = params_to_load_to_ui.get('input_image')
-        img_display_update = gr.update(value=Image.fromarray(img_np_from_task), visible=True) if isinstance(img_np_from_task, np.ndarray) else gr.update(value=None, visible=False) # type: ignore
-        file_input_update = gr.update(visible=False) # Hide the uploader when showing an image
-        ui_updates = [gr.update(value=params_to_load_to_ui.get(shared_state_module.UI_TO_WORKER_PARAM_MAP.get(key), None)) for key in shared_state_module.ALL_TASK_UI_KEYS]
 
-        # Construct the final list of updates in the correct order, matching `select_q_outputs`.
-        final_updates = (
-            [gr.update(), queue_helpers.update_queue_df_display(), img_display_update, file_input_update] +
-            ui_updates +
-            [gr.update(), gr.update(), gr.update(value="Update Task", variant="primary"), gr.update(visible=True)]
-        )
-        return final_updates
+        updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
+        for key in shared_state_module.ALL_TASK_UI_KEYS:
+            worker_key = shared_state_module.UI_TO_WORKER_PARAM_MAP.get(key)
+            updates[key] = gr.update(value=params_to_load_to_ui.get(worker_key))
+
+        updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=Image.fromarray(img_np_from_task), visible=True) if isinstance(img_np_from_task, np.ndarray) else gr.update(value=None, visible=False)
+        updates[K.IMAGE_FILE_INPUT] = gr.update(visible=False)
+        button_updates = event_handlers.update_button_states(input_image_pil=Image.fromarray(img_np_from_task) if isinstance(img_np_from_task, np.ndarray) else None)
+        updates.update(button_updates)
+        return updates
     elif action == "pause":
-        # gr.Info(f"Requesting pause for task {task_id}...")
         gr.Warning(f"In development: Pausing tasks is not yet implemented.")
-        # agents.ProcessingAgent().send({"type": "pause"})
-        # No immediate UI update needed, the worker will signal back.
-        return [gr.update()] * num_outputs
+        return {}
 
     # Default case: just update the queue display if a move or simple delete happened.
-    updates = [gr.update()] * num_outputs
-    updates[1] = queue_helpers.update_queue_df_display()
-    return updates
+    return {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
 
-def clear_task_queue_action():
-    """Clears all pending tasks from the queue."""
+def clear_task_queue_action() -> dict:
+    """Clears all pending tasks from the queue and returns UI updates as a dictionary."""
     queue_manager_instance.clear_pending_tasks()
-    return gr.update(), queue_helpers.update_queue_df_display()
+
+    # After clearing, there is no image, so we get button states for that.
+    button_updates = event_handlers.update_button_states(input_image_pil=None)
+
+    updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
+    updates.update(button_updates)
+    return updates
 
 def save_queue_to_zip():
     """Saves the current queue to a zip file."""
@@ -266,36 +236,25 @@ def save_queue_to_zip():
     queue = queue_manager_instance.get_state().get("queue")
     if not queue:
         gr.Info("Queue is empty. Nothing to save.")
-        return [gr.update(), None]
+        return gr.update(value=None)
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_file:
+        # Save the zip to the application's output folder. This directory is known
+        # to be accessible by Gradio, which can prevent permission errors when
+        # Gradio handles the file for download.
+        output_dir = os.path.abspath(settings_manager_instance.outputs_folder)
+        os.makedirs(output_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=output_dir, delete=False, suffix=".zip", prefix="queue_save_") as tmp_file:
             temp_zip_path = tmp_file.name
-        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            queue_manifest = []
-            for task in queue:
-                params_copy = task['params'].copy()
-                input_image_np = params_copy.pop('input_image', None)
-                # Save the actual status of the task. This makes the saved file a true snapshot
-                # of the queue's state. The status will be reset to 'pending' upon loading.
-                manifest_entry = {"id": task['id'], "params": params_copy, "status": task.get("status", "pending")}
-                if input_image_np is not None:
-                    img_filename = f"task_{task['id']}_input.png"
-                    manifest_entry['image_ref'] = img_filename
-                    img = Image.fromarray(input_image_np)
-                    with io.BytesIO() as buf:
-                        img.save(buf, format='PNG')
-                        zf.writestr(img_filename, buf.getvalue())
-                queue_manifest.append(manifest_entry)
-            zf.writestr(shared_state_module.QUEUE_STATE_JSON_IN_ZIP, json.dumps(queue_manifest, indent=4))
-        gr.Info(f"Queue with {len(queue)} tasks prepared for download.")
-        return [gr.update(), temp_zip_path]
+        if queue_helpers.create_queue_zip(temp_zip_path, queue):
+            gr.Info(f"Queue with {len(queue)} tasks prepared for download.")
+            return gr.update(value=temp_zip_path)
     except Exception as e:
         gr.Warning("Failed to create queue zip file.")
         logger.error(f"Error saving queue to zip: {e}", exc_info=True)
-        return [gr.update(), None]
+    return gr.update(value=None)
 
-def load_queue_from_zip(zip_file_or_path):
-    """Loads a queue from a zip file, including task parameters and images."""
+def load_queue_from_zip(zip_file_or_path) -> dict:
+    """Loads a queue from a zip file and returns UI updates as a dictionary."""
     filepath = None
     if isinstance(zip_file_or_path, str) and os.path.exists(zip_file_or_path):
         filepath = zip_file_or_path # type: ignore
@@ -304,7 +263,7 @@ def load_queue_from_zip(zip_file_or_path):
 
     if not filepath:
         logger.info("No valid queue file found to load.")
-        return gr.update(), gr.update()
+        return {} # Return empty dict for no-op
 
     new_queue, next_id = queue_helpers.reconstruct_queue_from_zip(filepath)
     if new_queue:
@@ -316,4 +275,9 @@ def load_queue_from_zip(zip_file_or_path):
         queue_manager_instance.load_queue(new_queue, next_id)
         gr.Info(f"Successfully loaded {len(new_queue)} tasks from {os.path.basename(filepath)}. All tasks set to 'Pending'.")
 
-    return gr.update(), queue_helpers.update_queue_df_display()
+    # After loading, there is no image selected, so get button states for that.
+    button_updates = event_handlers.update_button_states(input_image_pil=None)
+
+    updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
+    updates.update(button_updates)
+    return updates

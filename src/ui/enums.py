@@ -14,6 +14,7 @@ class ComponentKey(StrEnum):
     # --- State Components ---
     LORA_NAME_STATE = auto()
     EXTRACTED_METADATA_STATE = auto()
+    HANDLER_OUTPUT_STATE = auto() # A generic state to hold the output dict from a handler
     METADATA_MODAL_TRIGGER_STATE = auto()
 
     # --- Main UI Columns & Controls ---
@@ -24,7 +25,7 @@ class ComponentKey(StrEnum):
     DOWNLOAD_IMAGE_BUTTON = auto()
     PROCESS_QUEUE_BUTTON = auto()
     CREATE_PREVIEW_BUTTON = auto()
-    CANCEL_EDIT_TASK_BUTTON = auto()
+    # CANCEL_EDIT_TASK_BUTTON = auto()
     POSITIVE_PROMPT = auto()
     NEGATIVE_PROMPT = auto()
     VIDEO_LENGTH_SLIDER = auto()
@@ -35,7 +36,7 @@ class ComponentKey(StrEnum):
     # --- Metadata Modal ---
     METADATA_MODAL = auto()
     METADATA_PROMPT_PREVIEW = auto()
-    METADATA_OVERWRITE_SEED_CHECKBOX = auto()
+    # METADATA_OVERWRITE_SEED_CHECKBOX = auto()
     CANCEL_METADATA_BUTTON = auto()
     CONFIRM_METADATA_BUTTON = auto()
 
@@ -87,5 +88,5 @@ class ComponentKey(StrEnum):
     MP4_CRF_SLIDER = auto()
     LATENT_WINDOW_SIZE_SLIDER = auto()
     OUTPUT_FOLDER_TEXTBOX = auto()
-    SAVE_AS_DEFAULT_BUTTON = auto()
+    SAVE_AS_DEFAULT_WORKSPACE_BUTTON = auto()
     RELAUNCH_NOTIFICATION_MD = auto()

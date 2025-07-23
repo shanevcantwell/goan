@@ -27,14 +27,15 @@ from core import model_loader
 from ui import (
     layout as layout_manager,
     queue as queue_manager,
-    workspace as workspace_manager,
     lora as lora_manager,
     shared_state as shared_state_module, # Import module for access to instance
     switchboard
 )
+from ui.settings_manager import settings_manager_instance
 
 def setup_logging(debug_mode=False):
     """Configures a root logger to output to console and a daily rotating file."""
+    # Place the 'logs' directory in the project root, one level above the 'src' directory.
     log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
     os.makedirs(log_dir, exist_ok=True)
     log_filepath = os.path.join(log_dir, 'goan.log')
@@ -95,7 +96,7 @@ switchboard.wire_all_events(ui_components)
 if __name__ == "__main__":
     logger.info("Starting goan FramePack UI...")
 
-    initial_output_folder_path = workspace_manager.get_initial_output_folder_from_settings()
+    initial_output_folder_path = settings_manager_instance.get_initial_output_folder()
     expanded_outputs_folder_for_launch = os.path.abspath(initial_output_folder_path)
 
     final_allowed_paths = [expanded_outputs_folder_for_launch]
