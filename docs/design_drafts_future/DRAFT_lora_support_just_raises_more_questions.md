@@ -3,7 +3,7 @@
 
 -   **Author**: Gemini Code Assist
 -   **Date**: 2025-07-10
--   **Status**: Proposed
+-   **Status**: Partially Implemented
 
 ---
 
@@ -21,21 +21,22 @@ This limitation hinders reproducibility and collaboration. If an artist wants to
 
 ---
 
-## 3. Proposed Solution
+## 3. Current Implementation: Single LoRA Upload
 
-We will enhance the existing metadata save/load workflow to be LoRA-aware.
+The current system supports a single LoRA, which is managed via a simple file upload workflow.
 
-1.  **Extend Metadata Schema:** A new `loras` key will be added to the `parameters` JSON object that is saved into the PNG's `tEXt` chunk. This key will hold a list of objects, where each object details a single applied LoRA. This list-based schema is future-proof for a multi-LoRA system.
+1.  **File Upload**: The user can upload a `.safetensors` file using the `gr.UploadButton` in the "LoRA Settings" accordion.
+2.  **Local Caching**: The uploaded file is copied into the `./loras` directory in the project root. This directory acts as a simple, unmanaged cache of available LoRAs.
+3.  **UI State**: Upon upload, the UI controls for LoRA name, weight, and targets become visible and are populated with default values.
+4.  **Generation**: When "Process Queue" is clicked, the `ProcessingAgent` reads the values from these UI controls and applies the selected LoRA before starting generation.
 
-2.  **Update Save Logic:** The `prepare_image_for_download` handler will be modified. It will now read the current state of the LoRA UI controls and embed the configuration into the `params_dict` before it's written to the image.
-
-3.  **Update Load Logic:** A new handler, `load_lora_settings_from_metadata`, will be created. When a user drops an image and confirms they want to apply its settings, this new handler will be called. It will parse the `loras` key from the metadata and automatically populate the LoRA UI controls, making the specific LoRA setup instantly active.
+This implementation is functional but has significant limitations regarding portability and recipe sharing, which are addressed in the proposed future enhancements.
 
 ---
 
-## 4. Implementation Details
+## 4. Metadata Schema for Portability
 
-### 4.1. New Metadata Schema
+To support future enhancements and make creative recipes portable, the following metadata schema is used.
 
 The `loras` key will contain a list of LoRA configuration objects. For the current single-LoRA UI, this list will contain at most one element.
 

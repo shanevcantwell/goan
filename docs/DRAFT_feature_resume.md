@@ -143,3 +143,20 @@ This existing system ensures that even if a user accidentally navigates away, th
 ### `src/ui/workspace.py` & Switchboards (Modifications)
 
 The main file drop handler (`handle_file_drop`) will be updated to detect `.goan_resume` files and delegate them to the new `add_resumable_task_from_zip` handler in `queue.py`.
+
+---
+
+### Notes on flow implementation (originally in DEVELOPERS_GUIDE.md): Pausing and Resuming a Task
+
+This flow is essential for the checkpointing feature.
+
+1.  **User Action**: The user clicks the "Pause" button while a task is running.
+2.  **Signal Path**: The UI listener sends a `{"type": "pause"}` message to the `ProcessingAgent`, which sets the `pause_request_flag`.
+3.  **Worker Checkpoint**: The `worker`, at a safe point (e.g., between generation segments), checks `pause_request_flag.is_set()`.
+4.  **State Bundling**: Upon detecting the flag, the worker bundles its critical state (e.g., current latents, segment index, RNG state) into a `state_data` dictionary.
+5.  **Signal Pause**: The worker pushes a `('paused_with_state', state_data)` message to the `ProcessingAgent` and enters a waiting state.
+6.  **Agent & UI Update**: The agent receives the message, forwards a `task_paused` event to the `ui_update_queue`, and stores the `state_data` associated with the task. The UI updates to show a "Paused" status.
+7.  **User Resumes**: The "Process Queue" button will have changed to a "Resume" button. The user clicks it.
+8.  **Resume Signal**: The UI listener sends a `{"type": "resume"}` message to the `ProcessingAgent`.
+9.  **Agent Orchestration**: The agent retrieves the stored `state_data` for the paused task and signals the waiting `worker` thread to continue, passing the `state_data` back to it.
+10. **Worker Resumes**: The `worker` receives the signal, unpacks the `state_data` to restore its state, and resumes the generation process exactly where it left off.
