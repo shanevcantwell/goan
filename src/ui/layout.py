@@ -14,6 +14,18 @@ def create_ui():
     """
 
     css = """
+    /* --- Global Layout & Style Adjustments --- */
+    /* Reduce the gap between components in rows and columns for a tighter layout */
+    .gradio-container .gr-row, .gradio-container .gr-column {
+        gap: 4px !important;
+    }
+
+    /* Remove borders and shadows from all buttons for a flatter look */
+    .gr-button {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
     #queue_df { font-size: 0.9rem; }
 
     /* --- Task Queue Column Styling --- */
@@ -86,7 +98,6 @@ def create_ui():
     #clear_image_button:not([disabled]), #download_image_button:not([disabled]) {
         background-color: #3b82f6 !important; /* A softer, less intense blue */
         color: white !important;
-        border-color: #3b82f6 !important;
     }
     #clear_image_button:not([disabled]):hover, #download_image_button:not([disabled]):hover {
         background-color: #2563eb !important; /* A slightly darker blue for hover */
@@ -206,8 +217,8 @@ def create_ui():
                 components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
                 components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
                 # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
-                components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", variant="secondary", interactive=False, elem_id="clear_image_button", scale=1)
-                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", variant="secondary", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
+                components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1)
+                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
             with gr.Column(scale=2, min_width=600):
                 components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, max_lines=11, elem_id="positive_prompt")
@@ -233,6 +244,10 @@ def create_ui():
             components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", size="sm", interactive=False)
             components[K.LOAD_QUEUE_BUTTON] = gr.UploadButton("Load Queue", file_types=[".zip"], size="sm", variant="primary")
             components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", size="sm", variant="stop", interactive=False)
+        with gr.Row(equal_height=True):
+            components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Interval of periodic automatic previews", minimum=0, maximum=100, value=5, step=1)
+            components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
+            components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
 
         components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
             # label="Live Latent Preview",
@@ -306,10 +321,6 @@ def create_ui():
                     components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
                 with gr.Row(equal_height=True):
                     components[K.TOTAL_SEGMENTS_DISPLAY] = gr.Markdown("Calculated Total Segments: N/A", elem_id="total_segments_display")
-                with gr.Row(equal_height=True):
-                    components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Interval of periodic automatic previews", minimum=0, maximum=100, value=5, step=1)
-                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
-                components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(interactive=True, autoplay=False, height=540)
 
     return components
