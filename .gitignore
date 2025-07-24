@@ -203,3 +203,4 @@ goan.log.*
 src/ui/bak/
 install.bat.txt
 patch.txt
+.gitattributes
