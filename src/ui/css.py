@@ -3,15 +3,38 @@
 
 APP_CSS = """
 /* --- Global Layout & Style Adjustments --- */
-/* Reduce the gap between components in rows and columns for a tighter layout */
-.gradio-container .gr-row, .gradio-container .gr-column {
-    gap: 4px !important;
+/* Remove all gaps between components in rows, columns, and forms for a flush layout */
+.gradio-container .gr-row, .gradio-container .gr-column, .gradio-container .gr-form {
+    gap: 0 !important;
 }
 
-/* Remove borders and shadows from all buttons for a flatter look */
+/* --- Global Button Styling --- */
+/* Give all buttons a subtle, consistent border and remove the default shadow. */
 .gr-button {
-    border: none !important;
+    border: 1px solid var(--border-color-primary) !important;
     box-shadow: none !important;
+}
+
+/* --- Connected Button Group Styling --- */
+/* Creates a visually connected group of buttons in a row. Applied via elem_classes="button-group". */
+/* This new approach gives the container the border and removes it from the inner buttons,
+   which prevents the "beveled" look from individual button borders. */
+.button-group {
+    gap: 0 !important;
+    /* Add a border to the container itself and round its corners. */
+    border: 1px solid var(--border-color-primary) !important;
+    border-radius: var(--radius-lg) !important;
+    /* Hide overflow to ensure inner button corners are sharp and contained. */
+    overflow: hidden;
+}
+/* Remove all borders and rounding from the buttons inside the group. */
+.button-group > * .gr-button, .button-group > .gr-button {
+    border: none !important;
+    border-radius: 0 !important;
+}
+/* Add a separator line between buttons by adding a left border to all but the first. */
+.button-group > *:not(:first-child), .button-group > .gr-button:not(:first-child) {
+    border-left: 1px solid var(--border-color-primary) !important;
 }
 
 #queue_df { font-size: 0.9rem; }
@@ -69,6 +92,13 @@ APP_CSS = """
 
 .gradio-container { max-width: 95% !important; margin: auto !important; }
 :root {
+    /*
+       Color-blindness consideration: The current palette uses green (accent) and red (stop variant)
+       which can be problematic for deuteranopia/protanopia. The UI mitigates this by using
+       text and icons (▶️, ⏹️) as primary indicators, which is a good practice. Future color revisions
+       should consider palettes that rely on hue and brightness differences that are more universally
+       distinguishable (e.g., using blue/orange instead of green/red).
+    */
     --color-accent-soft: #4CAF50; --color-accent-50: #e8f5e9;
     --color-accent-100: #c8e6c9; --color-accent-200: #a5d6a7;
     --color-accent-300: #81c784; --color-accent-400: #66bb6a;
