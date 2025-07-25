@@ -12,7 +12,7 @@ import gradio as gr
 
 from . import shared_state as shared_state_module
 from .settings_manager import settings_manager_instance
-from . import event_handlers
+from . import event_handler_helpers, event_handlers
 from . import metadata as metadata_manager
 from .enums import ComponentKey as K
 
@@ -126,14 +126,14 @@ def load_and_apply_workspace_on_start() -> dict:
     all_updates[K.IMAGE_FILE_INPUT] = gr.update(visible=not has_image)
 
     # 4. Get button state updates and merge them into the main dictionary.
-    button_updates_dict = event_handlers.update_button_states(pil_image)
+    button_updates_dict = event_handler_helpers.update_button_states(pil_image)
     all_updates.update(button_updates_dict)
 
     # 5. Calculate and merge segment display updates.
-    # The settings map uses string keys, so we must use .value to get the key string from the enum.
-    video_duration = settings_values_map.get(K.VIDEO_LENGTH_SLIDER.value, 5.0)
-    fps = settings_values_map.get(K.FPS_SLIDER.value, 30)
-    segments_update_dict = event_handlers.ui_update_total_segments(video_duration, fps)
+    # The settings_values_map uses ComponentKey enums as keys.
+    video_duration = settings_values_map.get(K.VIDEO_LENGTH_SLIDER, 5.0)
+    fps = settings_values_map.get(K.FPS_SLIDER, 30)
+    segments_update_dict = event_handler_helpers.ui_update_total_segments(video_duration, fps)
     all_updates.update(segments_update_dict)
 
     # 6. Return the final, aggregated dictionary of all UI updates.

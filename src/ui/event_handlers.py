@@ -102,14 +102,24 @@ def handle_confirm_metadata(metadata_dict, current_video_len, current_fps) -> di
     final_updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=None) # Close modal
     return final_updates
 
-def prepare_image_for_download(pil_image, *creative_values):
-    """Injects creative parameter metadata into the current image and prepares it for download."""
+def prepare_image_for_download(pil_image, lora_name, lora_weight, lora_targets, *creative_values):
+    """Injects creative and LoRA parameter metadata into the current image and prepares it for download."""
     if not isinstance(pil_image, Image.Image):
         gr.Warning("No valid image to download.")
         return None
 
     # Create the parameters dictionary from the creative UI controls.
     params_dict = metadata_manager.create_params_from_ui(shared_state_module.CREATIVE_UI_KEYS, creative_values)
+
+    # Add LoRA settings if a LoRA is active, following the schema from the design doc.
+    if lora_name and lora_name != "None":
+        params_dict["loras"] = [
+            {
+                "name": lora_name,
+                "weight": lora_weight,
+                "targets": lora_targets,
+            }
+        ]
 
     pnginfo_obj = metadata_manager.create_pnginfo_obj(params_dict)
     image_copy = pil_image.copy() # Use a copy to avoid modifying the displayed image's info

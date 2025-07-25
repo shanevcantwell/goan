@@ -5,7 +5,7 @@ import gradio as gr
 from .enums import ComponentKey as K
 from . import (
     session_manager,
-    event_handlers,
+    event_handler_helpers, event_handlers,
     shared_state as shared_state_module,
 )
 from .switchboard_helpers import apply_updates
@@ -23,7 +23,7 @@ def wire_events(components: dict):
         [
             K.INPUT_IMAGE_DISPLAY, K.CLEAR_IMAGE_BUTTON, K.DOWNLOAD_IMAGE_BUTTON, K.IMAGE_FILE_INPUT
         ] +
-        event_handlers.BUTTON_KEYS +
+        event_handler_helpers.BUTTON_KEYS +
         [K.TOTAL_SEGMENTS_DISPLAY]
     )
     startup_output_components = [components[key] for key in startup_output_keys]

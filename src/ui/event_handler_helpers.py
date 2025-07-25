@@ -42,22 +42,25 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
     """
     cfg_shape_value = _get_value_from_input(cfg_shape_value)
     cfg_start_value = _get_value_from_input(cfg_start_value)
-
     logger.debug(f"Updating CFG visibility for shape: '{cfg_shape_value}'")
-    is_linear = cfg_shape_value == "Linear"
-    is_roll_off = cfg_shape_value == "Roll-off"
 
-    variable_cfg_active = cfg_shape_value != "Off"
-
-    # DISTILLED_CFG_END_SLIDER is visible and interactive for both Linear and Roll-off
-    end_cfg_active = variable_cfg_active
-
+    # Determine visibility based on the selected shape
+    is_roll_off = (cfg_shape_value == "Roll-off")
+    is_variable_cfg_active = (cfg_shape_value != "Off") # True for "Linear" and "Roll-off"
+    
     # When variable CFG is off, the end value should match the start value.
     # Otherwise, it retains its current value (gr.update()).
-    end_cfg_update_value = cfg_start_value if not end_cfg_active else gr.update()
-
+    end_cfg_value = cfg_start_value if not is_variable_cfg_active else gr.update()
+    
+    logger.debug(f"is_roll_off: {is_roll_off} is_variable_cfg_active: {is_variable_cfg_active} end_cfg_value: {end_cfg_value}")
     return {
-        K.DISTILLED_CFG_END_SLIDER: gr.update(visible=end_cfg_active, interactive=end_cfg_active, value=end_cfg_update_value),
+        # The "End" slider is visible and interactive whenever variable CFG is active.
+        K.DISTILLED_CFG_END_SLIDER: gr.update(
+            visible=is_variable_cfg_active,
+            interactive=is_variable_cfg_active,
+            value=end_cfg_value
+        ),
+        # The "Roll-off" sliders are only visible and interactive for the "Roll-off" shape.
         K.ROLL_OFF_START_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
         K.ROLL_OFF_FACTOR_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
     }

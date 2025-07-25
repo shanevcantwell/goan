@@ -6,7 +6,7 @@ from .enums import ComponentKey as K
 from . import (
     queue as queue_actions,
     queue_processing,
-    event_handlers,
+    event_handler_helpers, event_handler_helpers, event_handlers,
     shared_state as shared_state_module,
 )
 from .switchboard_helpers import apply_updates
@@ -32,16 +32,16 @@ def wire_events(components: dict):
     task_modification_output_keys = (
         [K.APP_STATE, K.QUEUE_DF, K.INPUT_IMAGE_DISPLAY, K.IMAGE_FILE_INPUT] +
         shared_state_module.ALL_TASK_UI_KEYS +
-        event_handlers.BUTTON_KEYS
+        event_handler_helpers.BUTTON_KEYS
     )
     task_modification_output_components = [components[k] for k in task_modification_output_keys]
 
     # Output keys for clearing the queue
-    clear_queue_output_keys = [K.QUEUE_DF] + event_handlers.BUTTON_KEYS
+    clear_queue_output_keys = [K.QUEUE_DF] + event_handler_helpers.BUTTON_KEYS
     clear_queue_output_components = [components[k] for k in clear_queue_output_keys]
 
     # Output keys for loading a queue
-    load_queue_output_keys = [K.QUEUE_DF] + event_handlers.BUTTON_KEYS
+    load_queue_output_keys = [K.QUEUE_DF] + event_handler_helpers.BUTTON_KEYS
     load_queue_output_components = [components[k] for k in load_queue_output_keys]
 
     # Outputs for the queue processing generator (this is a special case, not using the dict pattern)
@@ -90,9 +90,9 @@ def wire_events(components: dict):
         inputs=[components[K.INPUT_IMAGE_DISPLAY]],
         outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(
-        fn=partial(apply_updates, output_keys=event_handlers.BUTTON_KEYS, components_map=components),
+        fn=partial(apply_updates, output_keys=event_handler_helpers.BUTTON_KEYS, components_map=components),
         inputs=[components[K.HANDLER_OUTPUT_STATE]],
-        outputs=event_handlers.get_button_state_outputs(components)
+        outputs=event_handler_helpers.get_button_state_outputs(components)
     ))
 
     # 4. Cancel Edit (if uncommented, ensure it passes input_image_display)

@@ -15,7 +15,7 @@ from diffusers_helper.memory import unload_complete_models, load_model_as_comple
 from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
-from core import model_loader 
+from core import model_loader
 from ui import shared_state as shared_state_module
 from core import generation_utils
 from .generation_utils import generate_roll_off_schedule
@@ -103,7 +103,7 @@ def worker(
 
     # Initialize history_latents_for_abort here to ensure it's always defined
     # It will be overwritten within the loop if generation proceeds
-    history_latents_for_abort = None 
+    history_latents_for_abort = None
 
     try:
         if not isinstance(input_image, np.ndarray):
@@ -124,6 +124,17 @@ def worker(
         # Select only the creative parameters for saving in metadata and resume files.
         # This uses the canonical list from shared_state, ensuring consistency.
         params_to_save = {key: all_worker_params[key] for key in shared_state_module.CREATIVE_PARAM_KEYS if key in all_worker_params}
+        metadata_obj = PngInfo()
+        metadata_obj.add_text("parameters", json.dumps(params_to_save))
+        initial_image_with_params_path = os.path.join(
+            outputs_folder, f"{job_id}_initial_image_with_params.png"
+        )
+        try:
+            Image.fromarray(input_image_np).save(
+                initial_image_with_params_path, pnginfo=metadata_obj
+            )
+        except Exception as e_png:
+            logger.warning(f"Task {task_id}: Failed to save initial image with parameters: {e_png}")
 
         if not high_vram:
             unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
@@ -329,7 +340,7 @@ def worker(
                 if variable_cfg_shape == 'Linear':
                     # Linear interpolation from start to end CFG.
                     current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end_value_for_schedule - initial_gs_from_ui) * progress
-               
+
                 elif variable_cfg_shape == 'Roll-off':
                     # Roll-off logic adapted for per-segment scheduling.
                     roll_off_start_point = roll_off_start / 100.0

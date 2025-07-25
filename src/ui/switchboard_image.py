@@ -5,7 +5,7 @@ from functools import partial
 from .enums import ComponentKey as K
 from . import (
     metadata as metadata_manager,
-    event_handlers,
+    event_handler_helpers, event_handlers,
     shared_state as shared_state_module
 )
 from .switchboard_helpers import apply_updates
@@ -24,13 +24,13 @@ def wire_events(components: dict):
             K.EXTRACTED_METADATA_STATE, K.METADATA_MODAL_TRIGGER_STATE,
         ] +
         shared_state_module.CREATIVE_UI_KEYS +
-        event_handlers.BUTTON_KEYS
+        event_handler_helpers.BUTTON_KEYS
     )
     upload_output_components = [components[k] for k in upload_output_keys]
 
     # NOTE: This requires a new consolidated handler, `handle_image_upload`, to be created
     # in `event_handlers.py` that combines the logic of `workspace.handle_file_drop`
-    # and `event_handlers.update_button_states`.
+    # and `event_handler_helpers.update_button_states`.
     (components[K.IMAGE_FILE_INPUT].upload(
         fn=event_handlers.handle_image_upload,
         inputs=[components[K.IMAGE_FILE_INPUT]],
@@ -47,13 +47,13 @@ def wire_events(components: dict):
         [
             K.IMAGE_FILE_INPUT, K.INPUT_IMAGE_DISPLAY, K.EXTRACTED_METADATA_STATE
         ] +
-        event_handlers.BUTTON_KEYS
+        event_handler_helpers.BUTTON_KEYS
     )
     clear_output_components = [components[k] for k in clear_output_keys]
 
     # NOTE: This requires a new consolidated handler, `handle_clear_image`, to be created
     # in `event_handlers.py` that combines `event_handlers.clear_image_action` and
-    # `event_handlers.update_button_states` and returns a dictionary.
+    # `event_handler_helpers.update_button_states` and returns a dictionary.
     (components[K.CLEAR_IMAGE_BUTTON].click(
         fn=event_handlers.handle_clear_image,
         inputs=None,
