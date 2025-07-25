@@ -112,6 +112,12 @@ def load_and_apply_workspace_on_start() -> dict:
         # contains a corrupt value (like a list) and to ensure it's cleared on start.
         if key == K.RELAUNCH_NOTIFICATION_MD:
            continue
+        # The Latent Window Size is a non-interactive "magic number" for the model.
+        # It should never be loaded from a settings file, as a corrupted or stale
+        # file could break generation. We always want it to use the default value
+        # defined in the layout.
+        if key == K.LATENT_WINDOW_SIZE_SLIDER:
+           continue
         # Ensure the value is a string before passing it to gr.update for Markdown components
         if isinstance(value, list):
             logger.warning(f"Found list value for UI component '{key.value}' during startup load. Coercing to string. Original value: {value}")

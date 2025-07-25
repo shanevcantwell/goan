@@ -74,6 +74,24 @@ def create_ui():
             interactive=False # The grid itself is not interactive; actions are driven by .select()
         )
         with gr.Row():
+            with gr.Row(visible=False, equal_height=True) as progress_row:
+                components[K.PROGRESS_ROW] = progress_row
+                with gr.Column(scale=1):
+                    components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
+                        label="",
+                        interactive=False,
+                        visible=False, # Starts hidden, made visible by the agent during processing.
+                        show_download_button=False,
+                        elem_id="current_task_preview_image_ui",
+                    )
+                with gr.Column(scale=1):
+                    gr.Markdown("##### Task Progress")
+                    components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
+                    components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+                with gr.Column(scale=1):
+                    gr.Markdown("##### Segment Progress")
+                    components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
+                    components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
             with gr.Column(scale=1):
                 with gr.Accordion("Power User Settings", open=False):
                     with gr.Row():
@@ -122,7 +140,7 @@ def create_ui():
                     components[K.GPU_MEMORY_PRESERVATION_SLIDER] = gr.Slider(label="GPU Preserved (GB)", minimum=4, maximum=128, value=6.0, step=0.1)
                     components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1)
                     components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1)
-                    components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False)
+                    components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window Size", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=False) # Never change - FramePack Magic Number
                     components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(
                         label="Output Folder",
                         value=settings_manager_instance.get_initial_output_folder()
@@ -139,26 +157,6 @@ def create_ui():
                     components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Interval of periodic automatic previews", minimum=0, maximum=100, value=5, step=1)
                     components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
-
-                with gr.Row(visible=False, equal_height=True) as progress_row:
-                    components[K.PROGRESS_ROW] = progress_row
-                    with gr.Column(scale=1):
-                        gr.Markdown("##### Task Progress")
-                        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
-                        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
-                    with gr.Column(scale=1):
-                        gr.Markdown("##### Segment Progress")
-                        components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
-                        components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
-
-                components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
-                    label="",
-                    interactive=False,
-                    visible=False, # Starts hidden, made visible by the agent during processing.
-                    show_download_button=False,
-                    elem_id="current_task_preview_image_ui",
-                )
-
                 components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(interactive=True, autoplay=False, height=540)
 

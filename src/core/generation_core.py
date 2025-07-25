@@ -1,9 +1,10 @@
 ﻿import torch
+import einops
 import traceback
 import numpy as np
 import os
 import json
-from PIL import Image
+from PIL import Image, PngImagePlugin
 import logging
 from functools import partial
 from PIL.PngImagePlugin import PngInfo
@@ -17,8 +18,7 @@ from diffusers_helper.bucket_tools import find_nearest_bucket
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 from core import model_loader
 from ui import shared_state as shared_state_module
-from core import generation_utils
-from .generation_utils import generate_roll_off_schedule
+from core import generation_utils, inference_helpers
 import traceback
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def worker(
 
         # --- Prepare Conditioning Tensors ---
         # This block is now encapsulated in a helper function for clarity.
-        conditioning_tensors = generation_utils.prepare_conditioning_tensors(
+        conditioning_tensors = inference_helpers.prepare_conditioning_tensors(
             prompt=prompt,
             negative_prompt=negative_prompt,
             text_encoder=text_encoder,
@@ -202,45 +202,32 @@ def worker(
             latent_padding_size = latent_padding * latent_window_size
             # Added for consistent 1-indexed segment number for loop segments
             current_loop_segment_number = latent_padding_iteration + 1
-            logger.info(f"Task {task_id}: Seg {current_loop_segment_number}/{total_latent_sections} (lp_val={latent_padding}), last_loop_seg={is_last_section}")
+            logger.info(f"Task {task_id}: Seg {current_loop_segment_number}/{total_latent_sections} (latent_window_size={latent_window_size}, lp_val={latent_padding}, last_loop_seg={is_last_section})")
 
-            indices = torch.arange(
-                0,
-                sum([1, latent_padding_size, latent_window_size, 1, 2, 16]),
-                device="cpu",
-            ).unsqueeze(0)
-            (
-                clean_latent_indices_pre,
-                _,
-                latent_indices,
-                clean_latent_indices_post,
-                clean_latent_2x_indices,
-                clean_latent_4x_indices,
-            ) = indices.split(
-                [1, latent_padding_size, latent_window_size, 1, 2, 16], dim=1
-            )
-            clean_latents_pre = start_latent.to(
-                history_latents.device, dtype=history_latents.dtype
-            )
-            clean_latent_indices = torch.cat(
-                [clean_latent_indices_pre, clean_latent_indices_post], dim=1
+            # --- Prepare Latents for the Segment ---
+            # This block is now encapsulated in a helper function for clarity.
+            segment_latents = inference_helpers.prepare_segment_latents(
+                latent_padding_size=latent_padding_size,
+                latent_window_size=latent_window_size,
+                start_latent=start_latent,
+                history_latents=history_latents,
             )
 
-            clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[
-                :, :, : 1 + 2 + 16, :, :
-            ].split([1, 2, 16], dim=2)
-            clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
+            # Unpack the dictionary returned by the helper into local variables for the sampler.
+            latent_indices = segment_latents['latent_indices']
+            clean_latents = segment_latents['clean_latents']
+            clean_latent_indices = segment_latents['clean_latent_indices']
+            clean_latents_2x = segment_latents['clean_latents_2x']
+            clean_latent_2x_indices = segment_latents['clean_latent_2x_indices']
+            clean_latents_4x = segment_latents['clean_latents_4x']
+            clean_latent_4x_indices = segment_latents['clean_latent_4x_indices']
 
             if not high_vram:
                 unload_complete_models()
                 move_model_to_device_with_memory_preservation(
-                    transformer,
-                    target_device=gpu,
-                    preserved_memory_gb=gpu_memory_preservation,
+                    transformer, target_device=gpu, preserved_memory_gb=gpu_memory_preservation
                 )
-            transformer.initialize_teacache(
-                enable_teacache=use_teacache, num_steps=steps
-            )
+            transformer.initialize_teacache(enable_teacache=use_teacache, num_steps=steps)
 
             def callback_diffusion_step(d):
                 current_diffusion_step = d["i"] + 1
@@ -420,7 +407,7 @@ def worker(
     except (InterruptedError, KeyboardInterrupt) as e:
         logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
         # Send the latent state for pause/resume
-        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_abort, graceful_pause_preview_path)))
+        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_pause_preview_path)))
         success = False
         final_output_filename = graceful_pause_preview_path
     except Exception as e:

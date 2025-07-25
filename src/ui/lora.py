@@ -6,7 +6,8 @@ import gradio as gr
 import shutil
 import logging
 from safetensors.torch import load_file
-from core import model_loader # Import model_loader
+from core import model_loader
+from lora import lora_key_mapper # Import the new key mapper
 
 from .enums import ComponentKey as K
 from .shared_state import shared_state_instance
@@ -37,107 +38,6 @@ def _get_module(model, module_key):
     for part in module_key.split('.'):
         parent_module = parent_module[int(part)] if part.isdigit() else getattr(parent_module, part)
     return parent_module
-
-def _convert_hunyuan_keys_to_framepack(lora_sd: dict[str, torch.Tensor], prefix: str) -> dict[str, torch.Tensor]:
-    """Convert HunyuanVideo LoRA weights to FramePack format."""
-    logger.info("Hunyuan LoRA detected, converting keys to FramePack format...")
-    new_lora_sd = {}
-    for key, weight in lora_sd.items():
-        # Assumes keys are in kohya-ss format, e.g., lora_unet_...
-        # We will replace parts of the key to match FramePack's layer names.
-        new_key = key
-        if "double_blocks" in new_key:
-            new_key = new_key.replace("double_blocks", "transformer_blocks")
-            new_key = new_key.replace("img_mod_linear", "norm1_linear")
-            new_key = new_key.replace("img_attn_qkv", "attn_to_QKV")  # split later
-            new_key = new_key.replace("img_attn_proj", "attn_to_out_0")
-            new_key = new_key.replace("img_mlp_fc1", "ff_net_0_proj")
-            new_key = new_key.replace("img_mlp_fc2", "ff_net_2")
-            new_key = new_key.replace("txt_mod_linear", "norm1_context_linear")
-            new_key = new_key.replace("txt_attn_qkv", "attn_add_QKV_proj")  # split later
-            new_key = new_key.replace("txt_attn_proj", "attn_to_add_out")
-            new_key = new_key.replace("txt_mlp_fc1", "ff_context_net_0_proj")
-            new_key = new_key.replace("txt_mlp_fc2", "ff_context_net_2")
-        elif "single_blocks" in new_key:
-            new_key = new_key.replace("single_blocks", "single_transformer_blocks")
-            new_key = new_key.replace("linear1", "attn_to_QKVM")  # split later
-            new_key = new_key.replace("linear2", "proj_out")
-            new_key = new_key.replace("modulation_linear", "norm_linear")
-        else:
-            new_lora_sd[key] = weight # Not a transformer block, keep as is.
-            continue
-
-        # --- Weight Splitting Logic ---
-        if "QKVM" in new_key:
-            key_q = new_key.replace("QKVM", "q")
-            key_k = new_key.replace("QKVM", "k")
-            key_v = new_key.replace("QKVM", "v")
-            key_m = new_key.replace("attn_to_QKVM", "proj_mlp")
-
-            is_down_weight = "lora_down" in new_key or "lora_A" in new_key
-            is_up_weight = "lora_up" in new_key or "lora_B" in new_key
-
-            # Normalize to lora_down/up
-            key_q = key_q.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            key_k = key_k.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            key_v = key_v.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            key_m = key_m.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-
-            if is_down_weight or "alpha" in new_key:
-                new_lora_sd[key_q] = weight
-                new_lora_sd[key_k] = weight
-                new_lora_sd[key_v] = weight
-                new_lora_sd[key_m] = weight
-            elif is_up_weight:
-                # split QKVM weight into Q, K, V, M
-                new_lora_sd[key_q] = weight[:3072]
-                new_lora_sd[key_k] = weight[3072 : 3072 * 2]
-                new_lora_sd[key_v] = weight[3072 * 2 : 3072 * 3]
-                new_lora_sd[key_m] = weight[3072 * 3 :]
-            else:
-                logger.warning(f"Unsupported QKVM module name: {key}")
-        elif "QKV" in new_key:
-            key_q = new_key.replace("QKV", "q")
-            key_k = new_key.replace("QKV", "k")
-            key_v = new_key.replace("QKV", "v")
-
-            is_down_weight = "lora_down" in new_key or "lora_A" in new_key
-            is_up_weight = "lora_up" in new_key or "lora_B" in new_key
-
-            # Normalize to lora_down/up
-            key_q = key_q.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            key_k = key_k.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            key_v = key_v.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-
-            if is_down_weight or "alpha" in new_key:
-                new_lora_sd[key_q] = weight
-                new_lora_sd[key_k] = weight
-                new_lora_sd[key_v] = weight
-            elif is_up_weight:
-                # split QKV weight into Q, K, V
-                new_lora_sd[key_q] = weight[:3072]
-                new_lora_sd[key_k] = weight[3072 : 3072 * 2]
-                new_lora_sd[key_v] = weight[3072 * 2 :]
-            else:
-                logger.warning(f"Unsupported QKV module name: {key}")
-        else:
-            # no split needed
-            final_key = new_key.replace("lora_A", "lora_down").replace("lora_B", "lora_up")
-            new_lora_sd[final_key] = weight
-
-    return new_lora_sd
-
-def _translate_lora_state_dict(lora_sd: dict[str, torch.Tensor], prefix: str) -> dict[str, torch.Tensor]:
-    """
-    Checks if a LoRA state dict needs translation and applies it if necessary.
-    """
-    # Heuristic to detect if this is a Hunyuan-style LoRA that needs key conversion.
-    is_hunyuan_format = any("double_blocks" in k or "single_blocks" in k for k in lora_sd.keys())
-    if is_hunyuan_format:
-        return _convert_hunyuan_keys_to_framepack(lora_sd, prefix)
-    
-    # If not a known incompatible format, return as is.
-    return lora_sd
 
 class LoRAManager:
     def __init__(self):
@@ -173,46 +73,54 @@ class LoRAManager:
             model = shared_state_instance.models.get(map_info["model_key"])
             if not model: continue
             
-            lora_tensors = _translate_lora_state_dict(raw_lora_tensors, map_info["lora_prefix"])
-            self._merge_model_statically(model, lora_tensors, map_info["lora_prefix"], float(weight_slider_val), target_key)
+            # Use the new key mapper to translate and analyze the LoRA keys
+            model_sd = model.state_dict()
+            translated_lora_sd, report = lora_key_mapper.translate_and_analyze(raw_lora_tensors, model_sd)
+
+            # Log the results for debugging and provide UI feedback
+            mapped_count = len(report.get('mapped', []))
+            unmapped_count = len(report.get('unmapped', []))
+            logger.info(f"LoRA Mapping Report for '{target_key}': {mapped_count} mapped, {unmapped_count} unmapped.")
+            if unmapped_count > 0:
+                gr.Warning(f"LoRA '{lora_name}' had {unmapped_count} unmappable layers for target '{target_key}'. Check logs for details.")
+                logger.warning(f"First 5 unmapped keys for '{target_key}': {report['unmapped'][:5]}")
+            
+            if mapped_count > 0:
+                gr.Info(f"LoRA '{lora_name}' successfully mapped to {mapped_count} layers for target '{target_key}'.")
+            elif unmapped_count > 0: # Only show this if no layers were mapped at all
+                gr.Warning(f"LoRA '{lora_name}' could not be mapped to any layers for target '{target_key}'. The LoRA may be incompatible.")
+
+            # Use the translated state dict for merging
+            self._merge_model_statically(model, translated_lora_sd, float(weight_slider_val), target_key)
 
         self._applied_loras.add(lora_name)
 
-    def _merge_model_statically(self, model, lora_tensors, lora_prefix, multiplier, model_target_key):
+    def _merge_model_statically(self, model, translated_lora_tensors, multiplier, model_target_key):
         modified_keys_count = 0
+        model_keys = set(model.state_dict().keys())
 
-        # --- Build a reliable map from LoRA key names to the model's actual parameter keys ---
-        model_sd = model.state_dict()
-        lora_to_model_key_map = {}
-        for model_key in model_sd:
-            if model_key.endswith(".weight"):
-                # Convert model key 'path.to.layer.weight' to LoRA key 'prefix_path_to_layer'
-                lora_module_name = f"{lora_prefix}_{model_key.rsplit('.', 1)[0].replace('.', '_')}"
-                lora_to_model_key_map[lora_module_name] = model_key
-
-        # --- Iterate through LoRA weights and apply them ---
-        lora_down_keys = [k for k in lora_tensors.keys() if 'lora_down.weight' in k and k.startswith(lora_prefix)]
+        # Iterate through the translated LoRA weights and apply them
+        lora_down_keys = [k for k in translated_lora_tensors.keys() if 'lora_down.weight' in k]
 
         for down_key in lora_down_keys:
             up_key = down_key.replace('lora_down.weight', 'lora_up.weight')
             alpha_key = down_key.replace('lora_down.weight', 'alpha')
 
-            if up_key not in lora_tensors: continue
+            if up_key not in translated_lora_tensors: continue
 
-            # Find the corresponding parameter key in the model's state_dict
-            lora_module_name = down_key.rsplit('.lora_down.weight', 1)[0]
-            model_weight_key = lora_to_model_key_map.get(lora_module_name)
+            # The model's weight key is the LoRA key path without the .lora_down.weight suffix
+            module_path = down_key.rsplit('.lora_down.weight', 1)[0]
+            model_weight_key = f"{module_path}.weight"
 
-            if not model_weight_key:
-                logger.debug(f"Skipping LoRA key (no match in model): {down_key}")
+            if model_weight_key not in model_keys:
+                logger.debug(f"Skipping translated LoRA key (no match in model): {down_key} -> {model_weight_key}")
                 continue
 
             # Get the actual layer module from the model
-            module_path = model_weight_key.rsplit('.weight', 1)[0]
             try:
                 target_layer = _get_module(model, module_path)
-            except AttributeError:
-                logger.warning(f"Could not find module '{module_path}' in model for LoRA key '{down_key}'.")
+            except (AttributeError, KeyError) as e:
+                logger.warning(f"Could not find module '{module_path}' in model for LoRA key '{down_key}'. Error: {e}")
                 continue
 
             # --- Perform the merge ---
@@ -225,7 +133,6 @@ class LoRAManager:
                     self._original_params[model_target_key][module_path] = target_layer.weight.clone()
 
                 # Calculate scale
-                rank = lora_tensors[down_key].shape[0]
                 alpha = lora_tensors.get(alpha_key, torch.tensor(float(rank))).item()
                 scale = alpha / rank if rank > 0 else 1.0
 

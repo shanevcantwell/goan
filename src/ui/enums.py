@@ -94,7 +94,7 @@ class ComponentKey(StrEnum):
     FORCE_STANDARD_FPS_CHECKBOX = auto()
     GPU_MEMORY_PRESERVATION_SLIDER = auto()
     MP4_CRF_SLIDER = auto()
-    LATENT_WINDOW_SIZE_SLIDER = auto()
+    LATENT_WINDOW_SIZE_SLIDER = auto()  # FramePack configuration setting to set to 9 and leave alone
     OUTPUT_FOLDER_TEXTBOX = auto()
     SAVE_AS_DEFAULT_WORKSPACE_BUTTON = auto()
     RELAUNCH_NOTIFICATION_MD = auto()
