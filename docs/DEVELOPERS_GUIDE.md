@@ -107,17 +107,15 @@ The application allows users to save and load their exact generation settings by
 
 *   **Saving a Recipe**:
     1.  When the user clicks "Download Image", an event handler in `ui/workspace.py` is triggered.
-    2.  This handler gathers all relevant parameters from the UI controls into a dictionary.
-    3.  The dictionary is serialized into a JSON string.
-    4.  Using the `Pillow` library, the original input image is opened, and the JSON string is saved into the PNG's metadata, typically in a `tEXt` chunk with a unique key like `goan_params`.
+    2.  The `prepare_image_for_download` function gathers all relevant parameters from the UI controls into a dictionary.
+    3.  The dictionary is serialized into a JSON string and saved into the PNG's metadata using the `Pillow` library.
 
 *   **Loading a Recipe**:
-    1.  The main image input component is wired with an `.upload()` event handler in `ui/switchboard_workspace.py`.
-    2.  When a user drops a PNG file, the handler function (in `ui/workspace.py`) is executed.
-    3.  It uses `Pillow` to open the image and inspects its `.info` attribute for the `goan_params` key.
-    4.  If the key is found, the JSON string is parsed back into a parameter dictionary.
-    5.  A confirmation modal is shown to the user.
-    6.  If the user agrees, the handler function returns a large tuple of `gr.update()` objects, one for each UI control, populating the entire interface with the settings from the file.
+    1.  The main image input component is wired with an `.upload()` event handler in `ui/switchboard_image.py`.
+    2.  When a user drops a PNG file, the `handle_image_upload` function (in `ui/event_handlers.py`) is executed.
+    3.  It uses `Pillow` to open the image and inspects its metadata for the `goan_params` key.
+    4.  If found, the parameters are extracted, and a confirmation modal is shown to the user.
+    5.  If the user agrees, the `handle_confirm_metadata` function is called, which returns a dictionary of `gr.update()` objects to populate the UI.
 
 ---
 
@@ -161,9 +159,7 @@ The current implementation supports applying a single LoRA per task queue run. T
 * **`agents.py`**: **Contract**: Defines the `ProcessingAgent`. Its sole responsibility is to manage the lifecycle of the `worker` thread and bridge communication between the worker and the UI listener.
 * **`queue_processing.py`**: **Contract**: Contains the primary UI listener generator that starts processing and consumes the `ui_update_queue` to update the UI asynchronously.
 * **`queue_manager.py`**: **Contract**: Implements the `QueueManager` singleton. This is the **only** class that should directly modify the queue's internal state (`self.state["queue"]`).
-* **`queue.py`, `workspace.py`, `event_handlers.py`**: **Contract**: These modules contain the handler functions for synchronous UI events. Any function called directly by a switchboard event must return a tuple of `gr.update()` objects matching the length of the event's `outputs` list.
+* **`queue.py`, `workspace.py`, `event_handlers.py`**: **Contract**: These modules contain the handler functions for synchronous UI events. They must adhere to the **"Handler-Returns-Dict"** pattern, returning a dictionary of `gr.update()` objects keyed by `ComponentKey` enums.
 * **`settings_manager.py`**: **Contract**: The single source of truth for UI settings. Manages default values, loading settings from files (`goan_settings.json`), and applying them to the UI with correct type casting.
 * **`session_manager.py`**: **Contract**: Handles saving the application state on close (`goan_unload_save.json`) and restoring it on startup. It orchestrates calls to `settings_manager` to load the appropriate files.
 * **`workspace.py`**: **Contract**: Contains UI handlers for workspace-level actions, such as "Save as Default" or downloading a workspace file. It acts as a thin layer, calling `settings_manager` or `session_manager` to perform the actual file operations. **Note**: This file is undergoing a major cleanup; much of its previous logic has been moved to the new managers.
-* **`event_handlers.py`**: **Contract**: Contains miscellaneous synchronous UI event handlers, most notably the `update_button_states` state machine.
-* **`queue.py`**: **Contract**: Contains all synchronous UI event handlers related to managing the task queue (adding, updating, removing tasks).

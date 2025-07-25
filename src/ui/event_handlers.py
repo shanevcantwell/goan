@@ -45,6 +45,28 @@ def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
         update_text = "Segments: Invalid input"
     return {K.TOTAL_SEGMENTS_DISPLAY: gr.update(value=update_text)}
 
+def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_value: float) -> dict:
+    """
+    Updates visibility and interactivity of CFG sliders based on the selected shape.
+    Also resets the end CFG value to match the start value when variable CFG is turned off.
+    """
+    is_linear = cfg_shape_value == "Linear"
+    is_roll_off = cfg_shape_value == "Roll-off"
+
+    # DISTILLED_CFG_END_SLIDER is visible and interactive for both Linear and Roll-off
+    end_cfg_active = is_linear or is_roll_off
+
+    # When variable CFG is off, the end value should match the start value.
+    # Otherwise, it retains its current value (no-op update).
+    end_cfg_update_value = cfg_start_value if not end_cfg_active else gr.update()
+
+    return {
+        K.DISTILLED_CFG_END_SLIDER: gr.update(visible=end_cfg_active, interactive=end_cfg_active, value=end_cfg_update_value),
+        K.ROLL_OFF_START_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
+        K.ROLL_OFF_FACTOR_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
+    }
+
+
 def handle_image_upload(temp_file_data: any) -> dict:
     """
     Consolidated handler for image uploads. It processes the image, extracts
@@ -211,17 +233,19 @@ def update_button_states(input_image_pil):
     # The first rule with a condition that returns True will be used.
     rules = [
         {'condition': lambda s: s['stop_requested'], 'get_updates': lambda s: {
-            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=False, value="Stopping...", variant="stop"),
-            K.ADD_TASK_BUTTON: gr.update(interactive=False),
+            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=True, 
+                value="🫸 Stopping...", variant="stop"),
+            K.ADD_TASK_BUTTON: gr.update(interactive=True),
             K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False),
-            K.CLEAR_IMAGE_BUTTON: gr.update(interactive=False),
-            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=False),
+            K.CLEAR_IMAGE_BUTTON: gr.update(interactive=True),
+            K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=True),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=False),
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=False),
         }},
         {'condition': lambda s: s['is_editing'], 'get_updates': lambda s: {
             K.ADD_TASK_BUTTON: gr.update(interactive=not s['is_editing_processing_task'], variant="primary"),
-            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=False, value="▶️ Process Queue", variant="secondary"),
+            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=False, 
+                value="▶️ Process Queue", variant="secondary"),
             K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=False, variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=False, variant="secondary"),
@@ -229,25 +253,23 @@ def update_button_states(input_image_pil):
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=False, variant="secondary"),
         }},
         {'condition': lambda s: s['is_processing'], 'get_updates': lambda s: {
-            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=True, value="⏹️ Stop Processing", variant="stop"),
+            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=True, 
+                value="⏹️ Stop Processing", variant="stop"),
             K.CREATE_PREVIEW_BUTTON: gr.update(interactive=not s['preview_requested'],
-                                               value="Cancel Preview Request" if s['preview_requested'] else "📸 Generate a preview for the currently processing segment",
-                                               variant="secondary" if s['preview_requested'] else "primary"),
+                value="Cancel Preview Request" if s['preview_requested'] else 
+                      "📸 Generate a preview for the currently processing segment",
+                variant="secondary" if s['preview_requested'] else "primary"),
             K.CLEAR_QUEUE_BUTTON: gr.update(interactive=s['has_pending_tasks'], variant="stop" if s['has_pending_tasks'] else "secondary"),
             K.ADD_TASK_BUTTON: gr.update(interactive=s['has_image'], variant="primary" if s['has_image'] else "secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.SAVE_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'], variant="primary"),
-
         }},
         # Default rule for idle state.
         {'condition': lambda s: True, 'get_updates': lambda s: {
             K.ADD_TASK_BUTTON: gr.update(interactive=s['has_image'], variant="primary" if s['has_image'] else "secondary"),
-            K.PROCESS_QUEUE_BUTTON: gr.update(
-                interactive=s['queue_has_tasks'],
-                value="▶️ Process Queue",
-                variant="primary"
-                ),
+            K.PROCESS_QUEUE_BUTTON: gr.update(interactive=s['queue_has_tasks'],
+                value="▶️ Process Queue", variant="primary"),
             K.CREATE_PREVIEW_BUTTON: gr.update(interactive=False, variant="secondary"),
             K.CLEAR_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),
             K.DOWNLOAD_IMAGE_BUTTON: gr.update(interactive=s['has_image'], variant="secondary"),

@@ -1,9 +1,9 @@
-  # ui/layout.py
+# ui/layout.py
 # This file defines the Gradio UI layout for the goan application.
 
 import gradio as gr
 from gradio_modal import Modal
-from .css import APP_CSS
+from .css_main import APP_CSS
 
 from .enums import ComponentKey as K
 from .settings_manager import settings_manager_instance
@@ -43,18 +43,20 @@ def create_ui():
                 components[K.CANCEL_METADATA_BUTTON] = gr.Button("No")
                 components[K.CONFIRM_METADATA_BUTTON] = gr.Button("Yes, Apply", variant="primary")
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
-                components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False)
-                # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
-                components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1)
-                components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
-                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
-                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
-            with gr.Column(scale=2, min_width=600):
-                components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=13, max_lines=13, elem_id="positive_prompt")
-                components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=5, max_lines=5, elem_id="negative_prompt")
+        with gr.Group(elem_classes="top-section-container"):
+            with gr.Row():
+                with gr.Column(scale=1):
+                    components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
+                    components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False, elem_id="input_image_display_ui")
+                    # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
+                    components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1)
+                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Parameters", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
+                    components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(label="Video Length (s)", minimum=0.1, maximum=120, value=5.0, step=0.1)
+                    components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
+                with gr.Column(scale=2, min_width=600):
+                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, max_lines=11, elem_id="positive_prompt")
+                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=4, elem_id="negative_prompt")
+
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
@@ -87,7 +89,7 @@ def create_ui():
                         components[K.ROLL_OFF_FACTOR_SLIDER] = gr.Slider(label="Roll-off Curve Factor", minimum=0.25, maximum=4.0, value=1.0, step=0.05, visible=False)
                     with gr.Row():
                         components[K.DISTILLED_CFG_START_SLIDER] = gr.Slider(label="Distilled CFG Start", minimum=1.0, maximum=32.0, value=10.0, step=0.01)
-                        components[K.DISTILLED_CFG_END_SLIDER] = gr.Slider(label="Distilled CFG End", minimum=1.0, maximum=32.0, value=10.0, step=0.01, interactive=False)
+                        components[K.DISTILLED_CFG_END_SLIDER] = gr.Slider(label="Distilled CFG End", minimum=1.0, maximum=32.0, value=10.0, step=0.01, interactive=False, visible=False)
                     with gr.Row():
                         components[K.REAL_CFG_SLIDER] = gr.Slider(label="CFG (Real)", minimum=1.0, maximum=8.0, value=1.5, step=0.01)
                         components[K.STEPS_SLIDER] = gr.Slider(label="Steps", minimum=1, maximum=100, value=25, step=1)
@@ -135,16 +137,15 @@ def create_ui():
                     components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
 
-                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar")
-                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar", visible=False)
+                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui", visible=False)
                 components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
-                    # label="Live Latent Preview",
                     label="",
                     interactive=False,
                     visible=False, # Starts hidden, made visible by the agent during processing.
                     show_download_button=False,
                     elem_id="current_task_preview_image_ui",
-                    # height=50
+                    height=50,
                 )
 
                 components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")

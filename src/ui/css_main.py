@@ -1,7 +1,10 @@
-# src/ui/css.py
-# This file contains the full CSS for the Gradio application.
+# src/ui/css_main.py
+# This file contains the main/global CSS for the Gradio application.
+# It also imports and combines panel-specific CSS.
 
-APP_CSS = """
+from .css_top_panel import TOP_PANEL_CSS
+
+MAIN_CSS = """
 /* --- Global Layout & Style Adjustments --- */
 /* Remove all gaps between components in rows, columns, and forms for a flush layout */
 .gradio-container .gr-row, .gradio-container .gr-column, .gradio-container .gr-form {
@@ -23,7 +26,7 @@ APP_CSS = """
     gap: 0 !important;
     /* Add a border to the container itself and round its corners. */
     border: 1px solid var(--border-color-primary) !important;
-    border-radius: var(--radius-lg) !important;
+    border-radius: 0 !important; /* Squared off to match the top panel style */
     /* Hide overflow to ensure inner button corners are sharp and contained. */
     overflow: hidden;
 }
@@ -130,16 +133,6 @@ APP_CSS = """
     border-color: #4b5563 !important;     /* Slightly lighter border */
 }
 
-/* Highlight the Image Input Box on Load */
-#image_file_input_ui {
-    background-color: var(--color-accent-800); /* A dark green fill */
-    border-radius: 5px;
-    border: 2px dashed var(--color-accent-200); /* A light green dashed border */
-}
-#image_file_input_ui .text-gray-500 { /* This targets the default text color class */
-    color: var(--color-accent-100) !important;
-}
-
 /* --- NEW, MORE ROBUST FIX for fullscreen images --- */
 /* This targets any image inside a fixed-position container, which is
    how Gradio implements the fullscreen view. Using a space instead of '>'
@@ -180,3 +173,6 @@ div.fixed img {
 .total_segments_display > .gr-markdown { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
 .current_task_progress_bar > .gr-html {}
 """
+
+# Combine the main CSS with panel-specific CSS to create the final stylesheet.
+APP_CSS = MAIN_CSS + TOP_PANEL_CSS

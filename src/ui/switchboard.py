@@ -10,7 +10,8 @@ from . import (
     switchboard_image,
     switchboard_queue,
     switchboard_misc,
-    switchboard_startup
+    switchboard_startup,
+    switchboard_workspace,
 )
 
 logger = logging.getLogger(__name__)
