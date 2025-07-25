@@ -175,29 +175,27 @@ def update_queue_df_display():
         is_first_task = (i == 0)
         is_last_task = (i == total_tasks - 1)
 
-        # Move controls are disabled entirely if processing is active to prevent race conditions.
-        can_move = is_pending and not processing
-        up_enabled = can_move and not is_first_task
-        down_enabled = can_move and not is_last_task
+        # # Move controls are disabled entirely if processing is active to prevent race conditions.
+        # can_move = is_pending and not processing
+        # up_enabled = can_move and not is_first_task
+        # down_enabled = can_move and not is_last_task
 
-        # Pause is only available for the currently processing task.
-        pause_enabled = is_processing_current_task
+        # # Pause is only available for the currently processing task.
+        # pause_enabled = is_processing_current_task
 
-        # Edit is punted for this release.
-        edit_enabled = False
-        cancel_enabled = is_pending or is_processing_current_task
+        # # Edit is punted for this release.
+        # edit_enabled = False
+        # cancel_enabled = is_pending or is_processing_current_task
 
-        up_arrow = _button_markdown('⬆️', up_enabled)
-        down_arrow = _button_markdown('⬇️', down_enabled)
-        pause_button = _button_markdown('⏸️', pause_enabled)
-        edit_button = _button_markdown('✎', edit_enabled)
-        cancel_button = _button_markdown('✖️', cancel_enabled)
+        # up_arrow = _button_markdown('⬆️', up_enabled)
+        # down_arrow = _button_markdown('⬇️', down_enabled)
+        # pause_button = _button_markdown('⏸️', pause_enabled)
+        # edit_button = _button_markdown('✎', edit_enabled)
+        # cancel_button = _button_markdown('✖️', cancel_enabled)
 
-        prompt_display = (params['prompt'][:77] + '...') if len(params['prompt']) > 80 else params['prompt']
-
-        # Using html.escape() is more robust for tooltips
-        prompt_title = html.escape(params['prompt'], quote=True)
-        prompt_cell = f'<span title="{prompt_title}">{prompt_display}</span>'
+        # Wrap the full, escaped prompt in a scrollable div. The title attribute provides a native tooltip as a fallback.
+        prompt_full_escaped = html.escape(params['prompt'], quote=True)
+        prompt_cell = f'<div class="prompt-cell-scrollable" title="{prompt_full_escaped}">{prompt_full_escaped}</div>'
 
         img_uri = np_to_base64_uri(params.get('input_image'), format="png")
         thumbnail_size = "50px"

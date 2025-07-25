@@ -55,6 +55,17 @@ MAIN_CSS = """
     padding: 4px;
 }
 
+/* --- NEW: Scrollable Prompt Cell --- */
+/* This allows long prompts in the queue to be scrollable instead of taking up excess vertical space. */
+.prompt-cell-scrollable {
+    max-height: 6em; /* Sets a max height of about 4-5 lines of text */
+    overflow-y: auto; /* Adds a scrollbar only when content overflows */
+    white-space: pre-wrap; /* Respects newlines and spaces within the prompt */
+    word-break: break-word; /* Prevents long words from breaking the layout */
+    text-align: left; /* Ensures text is aligned left for readability */
+    padding-right: 5px; /* Adds a small gap between text and the scrollbar */
+}
+
 /* --- Fix for Queue Action Click Targets --- */
 /* Make the entire cell for an action icon a clickable link, improving hit area. */
 #queue_df td:nth-child(-n+5) a {

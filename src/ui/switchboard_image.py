@@ -66,7 +66,16 @@ def wire_events(components: dict):
 
     # --- 3. Download Image Event ---
     # This uses a JS-based download trigger, which is a standard Gradio pattern.
-    download_handler_inputs = [components[K.INPUT_IMAGE_DISPLAY]] + [components[key] for key in shared_state_module.CREATIVE_UI_KEYS]
+    # The inputs must be ordered to exactly match the signature of event_handlers.prepare_image_for_download
+    # which is: (pil_image, lora_name, lora_weight, lora_targets, *creative_values)
+    lora_ui_inputs = [
+        components[K.LORA_NAME],
+        components[K.LORA_WEIGHT],
+        components[K.LORA_TARGETS]
+    ]
+    creative_ui_inputs = [components[key] for key in shared_state_module.CREATIVE_UI_KEYS]
+    download_handler_inputs = [components[K.INPUT_IMAGE_DISPLAY]] + lora_ui_inputs + creative_ui_inputs
+
     (components[K.DOWNLOAD_IMAGE_BUTTON].click(
         fn=event_handlers.prepare_image_for_download,
         inputs=download_handler_inputs,
@@ -110,4 +119,3 @@ def wire_events(components: dict):
 
     # c. Cancel Metadata Button
     components[K.CANCEL_METADATA_BUTTON].click(fn=lambda: gr.update(value=None), inputs=None, outputs=[components[K.METADATA_MODAL_TRIGGER_STATE]])
-

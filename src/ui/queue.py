@@ -16,7 +16,7 @@ import logging
 from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 from .enums import ComponentKey as K
-from . import event_handlers
+from . import event_handler_helpers, event_handlers
 from .settings_manager import settings_manager_instance
 from . import queue_helpers, agents # agents is imported for ProcessingAgent().send()
 # NOTE: The 'checkpointing' module is not defined in provided contexts.
@@ -79,7 +79,7 @@ def add_or_update_task_in_queue(input_image_pil, *args_from_ui_controls_tuple) -
     else:
         queue_manager_instance.add_task(base_params_for_worker_dict, img_np_data)
         # After adding, the image is still present. Get button states for that.
-        button_updates = event_handlers.update_button_states(input_image_pil=input_image_pil)
+        button_updates = event_handler_helpers.update_button_states(input_image_pil=input_image_pil)
         updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
         updates.update(button_updates)
         return updates
@@ -145,11 +145,11 @@ def handle_queue_action_on_select(evt: gr.SelectData, input_image_pil) -> dict:
     if action == "move_up":
         queue_manager_instance.move_task('up', row_index)
         updates[K.QUEUE_DF] = queue_helpers.update_queue_df_display()
-        updates.update(event_handlers.update_button_states(input_image_pil=input_image_pil))
+        updates.update(event_handler_helpers.update_button_states(input_image_pil=input_image_pil))
     elif action == "move_down":
         queue_manager_instance.move_task('down', row_index)
         updates[K.QUEUE_DF] = queue_helpers.update_queue_df_display()
-        updates.update(event_handlers.update_button_states(input_image_pil=input_image_pil))
+        updates.update(event_handler_helpers.update_button_states(input_image_pil=input_image_pil))
     elif action == "cancel":
         if is_processing:
             # If the task is processing, send a signal to the agent.
@@ -165,7 +165,7 @@ def handle_queue_action_on_select(evt: gr.SelectData, input_image_pil) -> dict:
                 # If we deleted the task we were editing, cancel edit mode.
                 updates.update(cancel_edit_mode_action())
             else:
-                updates.update(event_handlers.update_button_states(input_image_pil=input_image_pil))
+                updates.update(event_handler_helpers.update_button_states(input_image_pil=input_image_pil))
     elif action == "edit":
         task_to_edit = queue_manager_instance.get_task_to_edit(row_index)
         if not task_to_edit:
@@ -182,7 +182,7 @@ def handle_queue_action_on_select(evt: gr.SelectData, input_image_pil) -> dict:
         updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=Image.fromarray(img_np_from_task), visible=True) if isinstance(img_np_from_task, np.ndarray) else gr.update(value=None, visible=False)
         updates[K.IMAGE_FILE_INPUT] = gr.update(visible=False)
         # When editing, the image *is* the one from the task, so this is correct.
-        button_updates = event_handlers.update_button_states(input_image_pil=Image.fromarray(img_np_from_task) if isinstance(img_np_from_task, np.ndarray) else None)
+        button_updates = event_handler_helpers.update_button_states(input_image_pil=Image.fromarray(img_np_from_task) if isinstance(img_np_from_task, np.ndarray) else None)
         updates.update(button_updates)
         return updates
     elif action == "pause":
@@ -197,7 +197,7 @@ def clear_task_queue_action(input_image_pil) -> dict:
     queue_manager_instance.clear_pending_tasks()
 
     # Pass the actual input_image_pil received from the UI
-    button_updates = event_handlers.update_button_states(input_image_pil=input_image_pil)
+    button_updates = event_handler_helpers.update_button_states(input_image_pil=input_image_pil)
 
     updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
     updates.update(button_updates)
@@ -254,7 +254,7 @@ def load_queue_from_zip(zip_file_or_path, input_image_pil) -> dict:
         gr.Info(f"Successfully loaded {len(new_queue)} tasks from {os.path.basename(filepath)}. All tasks set to 'Pending'.")
 
     # After loading, get button states based on the current image.
-    button_updates = event_handlers.update_button_states(input_image_pil=input_image_pil)
+    button_updates = event_handler_helpers.update_button_states(input_image_pil=input_image_pil)
 
     updates = {K.QUEUE_DF: queue_helpers.update_queue_df_display()}
     updates.update(button_updates)

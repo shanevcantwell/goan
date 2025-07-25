@@ -1,5 +1,6 @@
 import gradio as gr
 import time
+import os
 import tempfile
 from PIL import Image, PngImagePlugin
 
@@ -13,6 +14,9 @@ from . import event_handler_helpers as helpers
 from .queue_manager import queue_manager_instance
 
 logger = logging.getLogger(__name__)
+
+# The fixed filename used for saving the image on session unload/refresh.
+REFRESH_IMAGE_FILENAME = "goan_refresh_image.png"
 
 def safe_shutdown_action(app_state, *ui_values):
     """Performs all necessary save operations to prepare the app for a clean shutdown."""
@@ -46,11 +50,22 @@ def handle_image_upload(temp_file_data: any) -> dict:
 
             params = metadata_manager.extract_metadata_from_pil_image(pil_image)
             if params:
-                updates[K.EXTRACTED_METADATA_STATE] = params
-                updates[K.METADATA_PROMPT_PREVIEW] = params.get('prompt', '')
-                updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=str(time.time()))
+                # Check if this is the automatic session restore image.
+                is_session_restore = os.path.basename(filepath) == REFRESH_IMAGE_FILENAME
+
+                if is_session_restore:
+                    # If it's a session restore, apply the metadata directly without a modal.
+                    logger.info("Session restore image detected. Applying metadata automatically.")
+                    creative_params = metadata_manager.ui_load_params_from_image_metadata(params)
+                    updates.update({key: gr.update(value=value) for key, value in creative_params.items()})
+                else:
+                    # For a manual upload, trigger the confirmation modal.
+                    logger.info("Manual image upload with metadata detected. Triggering confirmation modal.")
+                    updates[K.EXTRACTED_METADATA_STATE] = params
+                    updates[K.METADATA_PROMPT_PREVIEW] = params.get('prompt', '')
+                    updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=str(time.time()))
         except Exception as e:
-            gr.Warning(f"Could not load file as an image: {e}")
+            gr.Warning(f"Could not load file '{os.path.basename(filepath)}' as an image: {e}")
             pil_image = None # Ensure image is None on failure
             updates[K.INPUT_IMAGE_DISPLAY] = gr.update(value=None, visible=False)
             updates[K.IMAGE_FILE_INPUT] = gr.update(visible=True, value=None)

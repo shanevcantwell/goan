@@ -1,11 +1,11 @@
 ﻿import torch
 import traceback
-import einops
 import numpy as np
 import os
 import json
 from PIL import Image
 import logging
+from functools import partial
 from PIL.PngImagePlugin import PngInfo
 
 from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
@@ -136,91 +136,36 @@ def worker(
         except Exception as e_png:
             logger.warning(f"Task {task_id}: Failed to save initial image with parameters: {e_png}")
 
-        if not high_vram:
-            unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
+        # --- Prepare Conditioning Tensors ---
+        # This block is now encapsulated in a helper function for clarity.
+        conditioning_tensors = generation_utils.prepare_conditioning_tensors(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            text_encoder=text_encoder,
+            text_encoder_2=text_encoder_2,
+            tokenizer=tokenizer,
+            tokenizer_2=tokenizer_2,
+            input_image_np=input_image_np,
+            feature_extractor=feature_extractor,
+            image_encoder=image_encoder,
+            vae=vae,
+            transformer=transformer,
+            real_cfg=real_cfg,
+            high_vram=high_vram,
+            output_queue_ref=output_queue_ref,
+            task_id=task_id,
+            total_latent_sections=total_latent_sections,
+        )
 
-        output_queue_ref.push(
-            (
-                "progress",
-                (
-                    task_id,
-                    None,
-                    f"Total Segments: {total_latent_sections}",
-                    make_progress_bar_html(0, "Text encoding ..."),
-                ),
-            )
-        )
-        if not high_vram:
-            fake_diffusers_current_device(text_encoder, gpu)
-            load_model_as_complete(text_encoder_2, target_device=gpu)
-        llama_vec, clip_l_pooler = encode_prompt_conds(
-            prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
-        )
-        if real_cfg == 1:
-            llama_vec_n, clip_l_pooler_n = torch.zeros_like(
-                llama_vec
-            ), torch.zeros_like(clip_l_pooler)
-        else:
-            llama_vec_n, clip_l_pooler_n = encode_prompt_conds(
-                negative_prompt, text_encoder, text_encoder_2, tokenizer, tokenizer_2
-            )
-        llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
-        llama_vec_n, llama_attention_mask_n = crop_or_pad_yield_mask(
-            llama_vec_n, length=512
-        )
-        input_image_pt = (
-            torch.from_numpy(input_image_np).float().permute(2, 0, 1).unsqueeze(0)
-            / 127.5
-            - 1.0
-        )
-        input_image_pt = input_image_pt[:, :, None, :, :]
-        output_queue_ref.push(
-            (
-                "progress",
-                (
-                    task_id,
-                    None,
-                    f"Total Segments: {total_latent_sections}",
-                    make_progress_bar_html(0, "VAE encoding ..."),
-                ),
-            )
-        )
-        if not high_vram:
-            load_model_as_complete(vae, target_device=gpu)
-        start_latent = vae_encode(input_image_pt, vae)
-        output_queue_ref.push(
-            (
-                "progress",
-                (
-                    task_id,
-                    None,
-                    f"Total Segments: {total_latent_sections}",
-                    make_progress_bar_html(0, "CLIP Vision encoding ..."),
-                ),
-            )
-        )
-        if not high_vram:
-            load_model_as_complete(image_encoder, target_device=gpu)
-        image_encoder_output = hf_clip_vision_encode(
-            input_image_np, feature_extractor, image_encoder
-        )
-        image_encoder_last_hidden_state = image_encoder_output.last_hidden_state
-        (
-            llama_vec,
-            llama_vec_n,
-            clip_l_pooler,
-            clip_l_pooler_n,
-            image_encoder_last_hidden_state,
-        ) = [
-            t.to(transformer.dtype)
-            for t in [
-                llama_vec,
-                llama_vec_n,
-                clip_l_pooler,
-                clip_l_pooler_n,
-                image_encoder_last_hidden_state,
-            ]
-        ]
+        # Unpack the tensors for use in the generation loop
+        llama_vec = conditioning_tensors['llama_vec']
+        llama_attention_mask = conditioning_tensors['llama_attention_mask']
+        clip_l_pooler = conditioning_tensors['clip_l_pooler']
+        llama_vec_n = conditioning_tensors['llama_vec_n']
+        llama_attention_mask_n = conditioning_tensors['llama_attention_mask_n']
+        clip_l_pooler_n = conditioning_tensors['clip_l_pooler_n']
+        start_latent = conditioning_tensors['start_latent']
+        image_encoder_last_hidden_state = conditioning_tensors['image_encoder_last_hidden_state']
 
         output_queue_ref.push(
             (
@@ -414,8 +359,8 @@ def worker(
                         None,  # No image preview here
                         f"Segment {current_loop_segment_number}/{total_latent_sections}: Decoding frames...",
                         make_progress_bar_html(
-                            100, "VAE Decode"
-                        ),  # Progress bar is full from sampling
+                            50, "VAE Decode"
+                        ),  # Progress bar is half full to show having moved past sampling.
                     ),
                 )
             )

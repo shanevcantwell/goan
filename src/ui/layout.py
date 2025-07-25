@@ -67,8 +67,8 @@ def create_ui():
             components[K.LOAD_QUEUE_BUTTON] = gr.UploadButton("Load Queue", file_types=[".zip"], size="sm", variant="primary")
             components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", size="sm", variant="stop", interactive=False)
         components[K.QUEUE_DF] = gr.DataFrame(
-            headers=["ID", "Status", "Prompt", "Seed", "Image"],
-            datatype=["number", "markdown", "markdown", "number", "markdown"],
+            headers=["Status", "Prompt", "Image", "Length (s)", "ID"],
+            datatype=["markdown", "markdown", "markdown", "number", "number"],
             elem_id="queue_df",
             max_height=350,
             interactive=False # The grid itself is not interactive; actions are driven by .select()
@@ -85,11 +85,11 @@ def create_ui():
                         #         components[K.REUSE_SEED_BUTTON] = gr.Button("♻️", elem_classes=["icon-button"], scale=1)
                     components[K.VARIABLE_CFG_SHAPE_RADIO] = gr.Radio(["Off", "Linear", "Roll-off"], label="Variable CFG", value="Off")
                     with gr.Row():
-                        components[K.ROLL_OFF_START_SLIDER] = gr.Slider(label="Roll-off Start %", minimum=0, maximum=100, value=75, step=1, visible=False)
-                        components[K.ROLL_OFF_FACTOR_SLIDER] = gr.Slider(label="Roll-off Curve Factor", minimum=0.25, maximum=4.0, value=1.0, step=0.05, visible=False)
-                    with gr.Row():
                         components[K.DISTILLED_CFG_START_SLIDER] = gr.Slider(label="Distilled CFG Start", minimum=1.0, maximum=32.0, value=10.0, step=0.01)
                         components[K.DISTILLED_CFG_END_SLIDER] = gr.Slider(label="Distilled CFG End", minimum=1.0, maximum=32.0, value=10.0, step=0.01, interactive=False, visible=False)
+                    with gr.Row():
+                        components[K.ROLL_OFF_START_SLIDER] = gr.Slider(label="Roll-off Start %", minimum=0, maximum=100, value=75, step=1, visible=False)
+                        components[K.ROLL_OFF_FACTOR_SLIDER] = gr.Slider(label="Roll-off Curve Factor", minimum=0.25, maximum=4.0, value=1.0, step=0.05, visible=False)
                     with gr.Row():
                         components[K.REAL_CFG_SLIDER] = gr.Slider(label="CFG (Real)", minimum=1.0, maximum=8.0, value=1.5, step=0.01)
                         components[K.STEPS_SLIDER] = gr.Slider(label="Steps", minimum=1, maximum=100, value=25, step=1)
@@ -131,21 +131,32 @@ def create_ui():
                     components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required** for new output path to take effect.", visible=False)
             with gr.Column(scale=2):
                 with gr.Row():
-                    components[K.TOTAL_SEGMENTS_DISPLAY] = gr.Markdown("Calculated Total Segments: N/A", elem_id="total_segments_display")
+                    with gr.Column(scale=2):
+                        components[K.TOTAL_SEGMENTS_DISPLAY] = gr.Markdown("Calculated Total Segments: N/A", elem_id="total_segments_display")
+                    with gr.Column(scale=1):
+                        components[K.QUEUE_ETA_DISPLAY] = gr.Markdown("", elem_id="queue_eta_display")
                 with gr.Row(equal_height=True):
                     components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Interval of periodic automatic previews", minimum=0, maximum=100, value=5, step=1)
                     components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Comma-separated specific segments to preview", value="")
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
 
-                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar", visible=False)
-                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui", visible=False)
+                with gr.Row(visible=False, equal_height=True) as progress_row:
+                    components[K.PROGRESS_ROW] = progress_row
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Task Progress")
+                        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
+                        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+                    with gr.Column(scale=1):
+                        gr.Markdown("##### Segment Progress")
+                        components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
+                        components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
+
                 components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
                     label="",
                     interactive=False,
                     visible=False, # Starts hidden, made visible by the agent during processing.
                     show_download_button=False,
                     elem_id="current_task_preview_image_ui",
-                    height=50,
                 )
 
                 components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")

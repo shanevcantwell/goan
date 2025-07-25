@@ -24,6 +24,7 @@ class ComponentKey(StrEnum):
     CLEAR_IMAGE_BUTTON = auto()
     DOWNLOAD_IMAGE_BUTTON = auto()
     PROCESS_QUEUE_BUTTON = auto()
+    PROGRESS_ROW = auto()
     CREATE_PREVIEW_BUTTON = auto()
     # CANCEL_EDIT_TASK_BUTTON = auto()
     POSITIVE_PROMPT = auto()
@@ -45,6 +46,13 @@ class ComponentKey(StrEnum):
     SAVE_QUEUE_BUTTON = auto()
     LOAD_QUEUE_BUTTON = auto()
     CLEAR_QUEUE_BUTTON = auto()
+    
+    # --- Live Progress Feedback ---
+    SEGMENT_PROGRESS_BAR = auto()
+    SEGMENT_ETA_DISPLAY = auto()
+    QUEUE_PROGRESS_BAR = auto()
+    QUEUE_ETA_DISPLAY = auto()
+     
 
     # --- Live Preview & Output ---
     CURRENT_TASK_PREVIEW_IMAGE = auto()

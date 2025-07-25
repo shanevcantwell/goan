@@ -23,13 +23,15 @@ def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
     total_seconds_ui = _get_value_from_input(total_seconds_ui)
     fps_ui = _get_value_from_input(fps_ui)
 
-    latent_window_size = LATENT_WINDOW_SIZE
+    latent_window_size = LATENT_WINDOW_SIZE  # FramePack standard, for future experimentation
+    frames_per_segment = latent_window_size * 4 - 3
+
     try:
         logger.debug(f"ui_update_total_segments received: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui} (latent_window_size={latent_window_size})")
         total_frames = int(total_seconds_ui * fps_ui)
-        frames_per_segment = latent_window_size * 4 - 3
         total_segments = int(max(round(total_frames / frames_per_segment), 1)) if frames_per_segment > 0 else 1
         update_text = f"Calculated: {total_segments} Segments, {total_frames} Total Frames"
+
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
         update_text = "Segments: Invalid input"
@@ -44,26 +46,28 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
     cfg_start_value = _get_value_from_input(cfg_start_value)
     logger.debug(f"Updating CFG visibility for shape: '{cfg_shape_value}'")
 
-    # Determine visibility based on the selected shape
     is_roll_off = (cfg_shape_value == "Roll-off")
     is_variable_cfg_active = (cfg_shape_value != "Off") # True for "Linear" and "Roll-off"
-    
-    # When variable CFG is off, the end value should match the start value.
-    # Otherwise, it retains its current value (gr.update()).
-    end_cfg_value = cfg_start_value if not is_variable_cfg_active else gr.update()
-    
-    logger.debug(f"is_roll_off: {is_roll_off} is_variable_cfg_active: {is_variable_cfg_active} end_cfg_value: {end_cfg_value}")
-    return {
-        # The "End" slider is visible and interactive whenever variable CFG is active.
-        K.DISTILLED_CFG_END_SLIDER: gr.update(
-            visible=is_variable_cfg_active,
-            interactive=is_variable_cfg_active,
-            value=end_cfg_value
-        ),
+
+    updates = {
         # The "Roll-off" sliders are only visible and interactive for the "Roll-off" shape.
         K.ROLL_OFF_START_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
         K.ROLL_OFF_FACTOR_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
     }
+
+    # Conditionally create the update for the End slider to avoid nested gr.update() objects.
+    if is_variable_cfg_active:
+        # When variable CFG is active, the end slider is visible and interactive.
+        # Its value should NOT be changed when the start slider is adjusted, so we
+        # create an update object without the `value` parameter.
+        end_slider_update = gr.update(visible=True, interactive=True)
+    else:
+        # When variable CFG is off, the end slider is hidden and its value
+        # is reset to match the start slider's value.
+        end_slider_update = gr.update(visible=False, interactive=False, value=cfg_start_value)
+
+    updates[K.DISTILLED_CFG_END_SLIDER] = end_slider_update
+    return updates
 
 # Define the button keys in a fixed order for consistent output.
 BUTTON_KEYS = [
