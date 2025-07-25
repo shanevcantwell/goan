@@ -50,14 +50,24 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
     Updates visibility and interactivity of CFG sliders based on the selected shape.
     Also resets the end CFG value to match the start value when variable CFG is turned off.
     """
+    # Defensively extract values if Gradio passes update dictionaries, which can
+    # happen during programmatic updates on startup.
+    if isinstance(cfg_shape_value, dict) and cfg_shape_value.get('__type__') == 'update':
+        cfg_shape_value = cfg_shape_value.get('value')
+    if isinstance(cfg_start_value, dict) and cfg_start_value.get('__type__') == 'update':
+        cfg_start_value = cfg_start_value.get('value')
+
+    logger.debug(f"Updating CFG visibility for shape: '{cfg_shape_value}'")
     is_linear = cfg_shape_value == "Linear"
     is_roll_off = cfg_shape_value == "Roll-off"
 
+    variable_cfg_active = cfg_shape_value != "Off"
+
     # DISTILLED_CFG_END_SLIDER is visible and interactive for both Linear and Roll-off
-    end_cfg_active = is_linear or is_roll_off
+    end_cfg_active = variable_cfg_active
 
     # When variable CFG is off, the end value should match the start value.
-    # Otherwise, it retains its current value (no-op update).
+    # Otherwise, it retains its current value (gr.update()).
     end_cfg_update_value = cfg_start_value if not end_cfg_active else gr.update()
 
     return {
@@ -66,13 +76,15 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
         K.ROLL_OFF_FACTOR_SLIDER: gr.update(visible=is_roll_off, interactive=is_roll_off),
     }
 
-
 def handle_image_upload(temp_file_data: any) -> dict:
     """
     Consolidated handler for image uploads. It processes the image, extracts
     metadata, and updates all relevant UI components, including button states.
     """
-    updates = {}
+    updates = {
+        # Always clear previous metadata state when a new image is loaded.
+        K.EXTRACTED_METADATA_STATE: {}
+    }
     pil_image = None
     filepath = None
 
