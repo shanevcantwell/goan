@@ -20,7 +20,7 @@ The application is built on four core principles:
 | Component | Responsibility | Key State Attributes |
 | :--- | :--- | :--- |
 | **`SharedState`** | Holds global, thread-safe application state and threading events. | `interrupt_flag`, `stop_requested_flag`, `manual_preview_request_flag`, `pause_request_flag`, `models` (dict), `system_info` (dict) |
-| **`QueueManager`** | Manages all operations on the task queue data structure. Responsible for orchestrating the saving and loading of the queue to/from disk for session persistence. | `queue` (list), `processing` (bool), `editing_task_id` (int/None), `next_task_id` (int) |
+| **`QueueManager`** | Manages all operations on the task queue data structure. Responsible for orchestrating the saving and loading of the queue to/from disk for session persistence. | `queue` (list), `processing` (bool), `next_task_id` (int) |
 
 ---
 
@@ -68,12 +68,6 @@ Communication between the UI, the agent, and the worker is handled via message p
 
 *   **Manual Preview**: The user clicks "Create Preview". A handler sets the `manual_preview_request_flag`. The `worker` checks this flag at the start of each segment, generates a preview if set, and then clears the flag.
 
-*   **Editing a Task**: The user clicks "Edit". The `QueueManager` enters an "editing" state, loading the task's parameters into the UI. The `update_button_states` function reconfigures the UI for editing. When the user clicks "Update Task", the `QueueManager` commits the changes and exits the editing state.
-
-5.  **User Modifies & Saves**: The user adjusts the parameters in the UI and clicks "Update Task".
-6.  **Handler & State Commit**: The corresponding event handler collects the current UI parameters and calls `queue_manager_instance.finish_editing_task(updated_params)`.
-7.  **Finalize**: The `QueueManager` updates the task in its internal queue with the new parameters, clears the `editing_task_id`, and the UI returns to its normal idle state.
-
 ---
 
 ## 4. UI State Logic: The Button State Machine
@@ -83,7 +77,6 @@ The interactivity of the main control buttons is managed by a single function, `
 | Application State | `Process Queue` Button | `Add Task` Button | `Create Preview` Button | Other Buttons |
 | :--- | :--- | :--- | :--- | :--- |
 | **Stopping** | `Stopping...` (disabled) | Disabled | Disabled | Disabled |
-| **Editing Task** | Disabled | `Update Task` (enabled) | Disabled | `Cancel Edit` is visible/enabled. Others disabled. |
 | **Processing** | `Stop Processing` (enabled) | Enabled (if image present) | Enabled (as a toggle) | `Clear Queue` enabled (if pending tasks exist). Others disabled. |
 | **Idle** | Enabled (if queue has tasks) | Enabled (if image present) | Disabled | `Save Queue`, `Clear Queue`, `Clear/Download Image` enabled based on context. |
 
