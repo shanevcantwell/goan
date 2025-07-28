@@ -28,9 +28,9 @@ class SettingsManager:
         return {
             K.POSITIVE_PROMPT: '',
             K.NEGATIVE_PROMPT: '',
-            K.VIDEO_LENGTH_SLIDER: 5.0,
+            K.VIDEO_LENGTH_SLIDER: 10.0,
             K.SEED: -1,
-            K.PREVIEW_FREQUENCY_SLIDER: 5,
+            K.PREVIEW_FREQUENCY_SLIDER: 10,
             K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX: '',
             K.FPS_SLIDER: 30,
             K.DISTILLED_CFG_START_SLIDER: 10.0,
@@ -47,6 +47,8 @@ class SettingsManager:
             K.MP4_CRF_SLIDER: 18,
             K.OUTPUT_FOLDER_TEXTBOX: self.outputs_folder,
             K.LATENT_WINDOW_SIZE_SLIDER: 9,
+            
+            K.SETTINGS_MENU_RADIO: "Off",
         }
 
     def _get_typed_value(self, key: K, value: Any, default_values: Dict[K, Any]) -> Any:

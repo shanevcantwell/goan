@@ -181,7 +181,7 @@ div.fixed img {
 .prompt-container { flex-grow: 1; display: flex; flex-direction: column; }
 .prompt-container > .gr-form { flex-grow: 1; display: flex; flex-direction: column; }
 .prompt-container > .gr-form > .gr-textarea-wrapper { flex-grow: 1; }
-.total_segments_display > .gr-markdown { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.total_segments_display > .gr-markdown { height: 100%; display: flex; flex-direction: column; justify-content: center; }
 .current_task_progress_bar > .gr-html {}
 """
 

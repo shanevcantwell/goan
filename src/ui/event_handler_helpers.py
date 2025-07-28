@@ -69,6 +69,25 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
     updates[K.DISTILLED_CFG_END_SLIDER] = end_slider_update
     return updates
 
+def handle_settings_menu_change(selected_menu: str) -> dict:
+    """
+    Handles changes in the settings menu radio button to toggle visibility
+    of the corresponding settings group.
+
+    Args:
+        selected_menu (str): The label of the selected radio button.
+
+    Returns:
+        dict: A dictionary of gr.update() objects to show/hide the groups.
+    """
+    return {
+        K.POWER_USER_GROUP: gr.update(visible=(selected_menu == "Power User")),
+        K.LORA_GROUP: gr.update(visible=(selected_menu == "LoRA")),
+        K.ADVANCED_SETTINGS_GROUP: gr.update(visible=(selected_menu == "Advanced")),
+        K.LAST_FINISHED_VIDEO: gr.update(visible=(selected_menu == "Off")),
+        K.FULL_WIDTH_LAYOUT_ROW: gr.update(visible=(selected_menu == "Off"))
+    }
+
 # Define the button keys in a fixed order for consistent output.
 BUTTON_KEYS = [
     K.ADD_TASK_BUTTON,

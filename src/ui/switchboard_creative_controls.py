@@ -67,3 +67,22 @@ def wire_events(components: dict):
             inputs=[components[K.HANDLER_OUTPUT_STATE]],
             outputs=segment_calc_output_components
         ))
+
+    # --- Wire Settings Menu ---
+    # This ensures only one of the settings panels (Power User, LoRA, Advanced) is visible at a time.
+    settings_menu_output_keys = [
+        K.POWER_USER_GROUP,
+        K.LORA_GROUP,
+        K.ADVANCED_SETTINGS_GROUP,
+    ]
+    settings_menu_output_components = [components[k] for k in settings_menu_output_keys]
+
+    (components[K.SETTINGS_MENU_RADIO].change(
+        fn=helpers.handle_settings_menu_change,
+        inputs=[components[K.SETTINGS_MENU_RADIO]],
+        outputs=[components[K.HANDLER_OUTPUT_STATE]]
+    ).then(
+        fn=partial(apply_updates, output_keys=settings_menu_output_keys, components_map=components),
+        inputs=[components[K.HANDLER_OUTPUT_STATE]],
+        outputs=settings_menu_output_components
+    ))

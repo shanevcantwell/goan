@@ -52,13 +52,15 @@ class ComponentKey(StrEnum):
     SEGMENT_ETA_DISPLAY = auto()
     QUEUE_PROGRESS_BAR = auto()
     QUEUE_ETA_DISPLAY = auto()
-     
 
     # --- Live Preview & Output ---
     CURRENT_TASK_PREVIEW_IMAGE = auto()
     CURRENT_TASK_PROGRESS_DESCRIPTION = auto()
     CURRENT_TASK_PROGRESS_BAR = auto()
+    PROCESSING_PROGRESS_BARS = auto()
     LAST_FINISHED_VIDEO = auto()
+    FULL_WIDTH_LAYOUT_ROW = auto()
+    LAST_FINISHED_VIDEO_FULL_WIDTH = auto()
 
     # --- Accordions & Advanced Settings ---
     TOTAL_SEGMENTS_DISPLAY = auto()
@@ -66,20 +68,23 @@ class ComponentKey(StrEnum):
     PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX = auto()
     FPS_SLIDER = auto()
 
-    # Renamed from Hunyuan abbreviations (GS, CFG, RS) for clarity.
-    DISTILLED_CFG_START_SLIDER = auto()         # GS
-    VARIABLE_CFG_SHAPE_RADIO = auto()           # GS_SCHEDULE_SHAPE
-    DISTILLED_CFG_END_SLIDER = auto()           # GS_FINAL
-    REAL_CFG_SLIDER = auto()                    # CFG
-    GUIDANCE_RESCALE_SLIDER = auto()            # RS
+    # --- Settings Panels ---
+    SETTINGS_MENU_RADIO = auto()
+    POWER_USER_GROUP = auto()
+    LORA_GROUP = auto()
+    ADVANCED_SETTINGS_GROUP = auto()
 
+    # --- Power User Settings ---
+    DISTILLED_CFG_START_SLIDER = auto()
+    VARIABLE_CFG_SHAPE_RADIO = auto()
+    DISTILLED_CFG_END_SLIDER = auto()
+    REAL_CFG_SLIDER = auto()
+    GUIDANCE_RESCALE_SLIDER = auto()
     ROLL_OFF_START_SLIDER = auto()
     ROLL_OFF_FACTOR_SLIDER = auto()
     STEPS_SLIDER = auto()
 
     # --- LoRA Settings ---
-    # The singular names here are placeholders for a future system that will support multiple LoRAs dynamically.
-    LORA_ACCORDION = auto()
     LORA_UPLOAD_BUTTON = auto()
     LORA_REFRESH_BUTTON = auto()
     LORA_NAMES = auto()
@@ -88,13 +93,16 @@ class ComponentKey(StrEnum):
     LORA_ROW = auto()
     LORA_NAME = auto()
 
-    # --- Debug Settings & Workspace ---
+    # --- Advanced Settings Group ---
     USE_TEACACHE_CHECKBOX = auto()
     USE_FP32_TRANSFORMER_OUTPUT_CHECKBOX = auto()
     FORCE_STANDARD_FPS_CHECKBOX = auto()
     GPU_MEMORY_PRESERVATION_SLIDER = auto()
+    SHOW_HIDDEN_ELEMENTS_CHECKBOX = auto()
     MP4_CRF_SLIDER = auto()
     LATENT_WINDOW_SIZE_SLIDER = auto()  # FramePack configuration setting to set to 9 and leave alone
     OUTPUT_FOLDER_TEXTBOX = auto()
+    
+    # --- Workspace ---
     SAVE_AS_DEFAULT_WORKSPACE_BUTTON = auto()
     RELAUNCH_NOTIFICATION_MD = auto()
