@@ -1,0 +1,102 @@
+{
+  "manifest_version": "1.0",
+  "project": "goan_ui_refactor",
+  "tasks": [
+    {
+      "task_id": "T01",
+      "title": "Relocate Calculated Segments Info Text",
+      "status": "pending",
+      "component_keys": [
+        "VIDEO_LENGTH_SLIDER",
+        "FPS_SLIDER",
+        "CALCULATED_SEGMENTS_HTML (new)"
+      ],
+      "problem_description": "The 'Calculated: X Segments...' text is currently injected into the 'info' property of the VIDEO_LENGTH_SLIDER. This prevents the slider's actual label from being displayed and misplaces the information. The information is more logically associated with the preview controls below it.",
+      "suggested_solution": "1. In `enums.py`, add a new ComponentKey: `CALCULATED_SEGMENTS_HTML`. 2. In `layout.py`, add a new `gr.HTML` component with this key, placing it in a new `gr.Row` above the `PREVIEW_FREQUENCY_SLIDER`. 3. In `layout.py`, modify `VIDEO_LENGTH_SLIDER` to display its `label` (e.g., 'Video Length (s)') and remove the initial `info` text. 4. In `switchboard_creative_controls.py`, change the output of the segment calculation event chain to target the new `CALCULATED_SEGMENTS_HTML` component instead of the slider. 5. The underlying helper function (`helpers.ui_update_total_segments`) will now update the `.value` of the HTML component, likely with styled `<span>` tags for good presentation.",
+      "files_affected": [
+        "ui/layout.py",
+        "ui/switchboard_creative_controls.py",
+        "src/helpers.py",
+        "ui/enums.py"
+      ]
+    },
+    {
+      "task_id": "T02",
+      "title": "Flatten Input Component Styles in Top Panel",
+      "status": "pending",
+      "component_keys": [
+        "PROMPT",
+        "NEGATIVE_PROMPT",
+        "MANUAL_PREVIEW_IMAGE",
+        "PREVIEW_SEGMENTS_TEXTBOX"
+      ],
+      "problem_description": "Components within the main top panel have their own default borders, backgrounds, and shadows, creating a visually jarring 'inset' or 'double-border' effect that clashes with the clean container.",
+      "suggested_solution": "Define a new utility CSS class (e.g., `.flat-input`) in the main CSS file. This class will set `background-color: transparent !important;`, `border: none !important;`, and `box-shadow: none !important;`. Apply this class to the `elem_classes` of the specified components in `layout.py`.",
+      "files_affected": [
+        "ui/css_main.py",
+        "ui/layout.py"
+      ]
+    },
+    {
+      "task_id": "T03",
+      "title": "Style Queue Dataframe for Theme Consistency",
+      "status": "pending",
+      "component_keys": [
+        "QUEUE_DF"
+      ],
+      "problem_description": "The default Gradio Dataframe has bright white cell borders, default browser scrollbars, and inconsistent text alignment that do not match the application's dark theme.",
+      "suggested_solution": "Add targeted CSS in `css_main.py` using the Dataframe's `elem_id`. The CSS will: replace bright borders with a subtle bottom border (`border-bottom: 1px solid #374151;`), vertically center cell content, style the header row, and style the internal scrollbar to match the dark theme.",
+      "files_affected": [
+        "ui/css_main.py",
+        "ui/layout.py"
+      ]
+    },
+    {
+      "task_id": "T04",
+      "title": "Fix Progress Bar HTML Rendering",
+      "status": "pending",
+      "component_keys": [
+        "PROGRESS_BAR_HTML"
+      ],
+      "problem_description": "The progress bar component is rendering raw HTML as a string instead of interpreting it as DOM elements. This is a bug in how updates are yielded.",
+      "suggested_solution": "Locate the generator function responsible for progress updates (likely in `src/queue_processing.py`). Ensure that when it yields an update for this component, it is correctly formatted as `gr.update(value=html_string)`, not just the raw string. The event handler must return a dictionary targeting the component key.",
+      "files_affected": [
+        "src/queue_processing.py"
+      ]
+    },
+    {
+      "task_id": "T05",
+      "title": "Standardize and Refine Button Styles",
+      "status": "pending",
+      "component_keys": [
+        "REPLACE_IMAGE_BUTTON",
+        "DOWNLOAD_IMAGE_BUTTON",
+        "ADD_TO_QUEUE_BUTTON",
+        "PROCESS_QUEUE_BUTTON",
+        "SAVE_QUEUE_BUTTON",
+        "LOAD_QUEUE_BUTTON",
+        "STOP_PROCESSING_BUTTON"
+      ],
+      "problem_description": "Button styles are inconsistent across the application. The blue on the image buttons is too intense for the dark theme. Other buttons lack a clear visual hierarchy.",
+      "suggested_solution": "1. In `css_main.py`, create a new CSS class (e.g., `.muted-blue-button`) to tone down the blue background color and apply it to the image buttons in `layout.py`. 2. Define consistent styles for primary (bright orange), secondary (dark gray/outline), and destructive (red) actions. Apply these classes systematically to the other buttons in `layout.py` to create a clear visual hierarchy.",
+      "files_affected": [
+        "ui/css_main.py",
+        "ui/layout.py"
+      ]
+    },
+    {
+      "task_id": "T06",
+      "title": "Refine Creative Options Checkbox Group",
+      "status": "pending",
+      "component_keys": [
+        "SETTINGS_MENU_CHECKBOX_GROUP"
+      ],
+      "problem_description": "The component displays a generic and unnecessary label 'Checkbox Group' and is contained within a bordered box, adding to visual clutter.",
+      "suggested_solution": "1. In `layout.py`, remove the `label` argument from the `gr.CheckboxGroup` definition. 2. In `css_main.py`, add a CSS rule to remove the border from the parent container of the checkbox group, likely targeting it by a new `elem_id` or `elem_class`.",
+      "files_affected": [
+        "ui/layout.py",
+        "ui/css_main.py"
+      ]
+    }
+  ]
+}

@@ -188,7 +188,6 @@ outputs_svc/
 demo_gradio_svc.py
 .venv_goan/
 .vs/
-*.json
 hf_download
 *.zip
 *Copy*.py
@@ -204,3 +203,5 @@ src/ui/bak/
 install.bat.txt
 patch.txt
 .gitattributes
+settings.json
+goan_settings.json
