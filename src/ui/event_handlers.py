@@ -110,8 +110,23 @@ def handle_confirm_metadata(metadata_dict, current_video_len, current_fps) -> di
     #    First, convert the dictionary of raw parameters into a dictionary of gr.update() objects.
     final_updates = {key: gr.update(value=value) for key, value in creative_params_from_metadata.items()}
 
-    #    Then, add the segment calculation updates.
-    final_updates.update(helpers.ui_update_total_segments(new_video_len, new_fps))
+    #    Then, calculate and merge the segment display updates.
+    #    We must manually merge the gr.update() objects for the video length slider to preserve
+    #    both the 'value' from metadata and the 'info' text from the calculation.
+    #    A simple dict.update() would overwrite one with the other.
+    segments_update_dict = helpers.ui_update_total_segments(new_video_len, new_fps)
+    slider_update_from_metadata = final_updates.get(K.VIDEO_LENGTH_SLIDER, gr.update())
+    slider_update_from_segments = segments_update_dict.get(K.VIDEO_LENGTH_SLIDER, gr.update())
+    
+    combined_attrs = {}
+    # A gr.update() object is a dictionary. We check for its type marker and merge its contents.
+    if isinstance(slider_update_from_metadata, dict) and slider_update_from_metadata.get('__type__') == 'update':
+        combined_attrs.update({k: v for k, v in slider_update_from_metadata.items() if k != '__type__'})
+
+    if isinstance(slider_update_from_segments, dict) and slider_update_from_segments.get('__type__') == 'update':
+        combined_attrs.update({k: v for k, v in slider_update_from_segments.items() if k != '__type__'})
+
+    final_updates[K.VIDEO_LENGTH_SLIDER] = gr.update(**combined_attrs)
 
     #    Finally, add the modal close update.
     final_updates[K.METADATA_MODAL_TRIGGER_STATE] = gr.update(value=None) # Close modal

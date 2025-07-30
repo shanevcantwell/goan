@@ -1,4 +1,4 @@
-﻿import torch
+﻿﻿import torch
 import einops
 import traceback
 import numpy as np
@@ -105,6 +105,7 @@ def worker(
     # It will be overwritten within the loop if generation proceeds
     history_latents_for_abort = None
 
+    is_paused = False
     try:
         if not isinstance(input_image, np.ndarray):
             raise ValueError(f"Task {task_id}: input_image is not a NumPy array.")
@@ -409,13 +410,18 @@ def worker(
         # Send the latent state for pause/resume
         output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_pause_preview_path)))
         success = False
+        is_paused = True
         final_output_filename = graceful_pause_preview_path
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
         output_queue_ref.push(('error', (task_id, str(e))))
         success = False
     finally:
+        # Always perform cleanup.
         transformer.high_quality_fp32_output_for_inference = original_fp32_setting
         if not high_vram:
             unload_complete_models(text_encoder, text_encoder_2, image_encoder, vae, transformer)
-        output_queue_ref.push(('end', (task_id, success, final_output_filename)))
+        # Only send the 'end' signal if the task wasn't paused.
+        # A paused task is handled by the ProcessingAgent and is not considered "ended".
+        if not is_paused:
+            output_queue_ref.push(('end', (task_id, success, final_output_filename)))

@@ -98,7 +98,7 @@ def wire_events(components: dict):
     # This event consolidates preprocessing, applying metadata, recalculating segments, and closing the modal.
     confirm_metadata_output_keys = (
         shared_state_module.CREATIVE_UI_KEYS +
-        [K.TOTAL_SEGMENTS_DISPLAY, K.METADATA_MODAL_TRIGGER_STATE]
+        [K.METADATA_MODAL_TRIGGER_STATE] # Corrected: Removed non-existent key.
     )
     confirm_metadata_output_components = [components[k] for k in confirm_metadata_output_keys]
 

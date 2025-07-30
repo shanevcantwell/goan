@@ -18,8 +18,17 @@ def _get_value_from_input(input_val: any) -> any:
         return input_val.get('value')
     return input_val
 
+def _merge_gradio_updates(*update_dicts: dict) -> gr.update:
+    """Merges multiple Gradio update dictionaries into a single gr.update object."""
+    combined_attrs = {}
+    for update_dict in update_dicts:
+        if isinstance(update_dict, dict) and update_dict.get('__type__') == 'update':
+            # Exclude the internal type marker from the merge
+            combined_attrs.update({k: v for k, v in update_dict.items() if k != '__type__'})
+    return gr.update(**combined_attrs)
+
 def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
-    """Calculates the number of segments and returns a dictionary update."""
+    """Calculates the number of segments and returns a dictionary update for the video length slider's info property."""
     total_seconds_ui = _get_value_from_input(total_seconds_ui)
     fps_ui = _get_value_from_input(fps_ui)
 
@@ -35,7 +44,7 @@ def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
         update_text = "Segments: Invalid input"
-    return {K.TOTAL_SEGMENTS_DISPLAY: gr.update(value=update_text)}
+    return {K.VIDEO_LENGTH_SLIDER: gr.update(info=update_text)}
 
 def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_value: float) -> dict:
     """
@@ -69,23 +78,43 @@ def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_valu
     updates[K.DISTILLED_CFG_END_SLIDER] = end_slider_update
     return updates
 
-def handle_settings_menu_change(selected_menu: str) -> dict:
+def handle_settings_menu_change(selected_menu: list | None, app_state: dict) -> dict:
     """
-    Handles changes in the settings menu radio button to toggle visibility
-    of the corresponding settings group.
+    Handles changes in the settings menu to toggle visibility of settings groups
+    and correctly show/hide the appropriate video player, ensuring the video
+    path is always correctly loaded.
 
     Args:
-        selected_menu (str): The label of the selected radio button.
+        selected_menu (list | None): The list of selected checkboxes (0 or 1 item).
+        app_state (dict): The current application state, containing the last video path.
 
     Returns:
-        dict: A dictionary of gr.update() objects to show/hide the groups.
+        dict: A dictionary of gr.update() objects to show/hide the groups and
+              to enforce the single-selection state in the UI.
     """
+    active_menu = "Off"
+    update_value = []
+    last_video_path = app_state.get("last_completed_video_path")
+
+    if selected_menu:
+        # If multiple items are selected (e.g., user checks a second box),
+        # treat the last one in the list as the new, single selection.
+        active_menu = selected_menu[-1]
+        update_value = [active_menu]
+    
+    is_settings_open = (active_menu != "Off")
+
     return {
-        K.POWER_USER_GROUP: gr.update(visible=(selected_menu == "Power User")),
-        K.LORA_GROUP: gr.update(visible=(selected_menu == "LoRA")),
-        K.ADVANCED_SETTINGS_GROUP: gr.update(visible=(selected_menu == "Advanced")),
-        K.LAST_FINISHED_VIDEO: gr.update(visible=(selected_menu == "Off")),
-        K.FULL_WIDTH_LAYOUT_ROW: gr.update(visible=(selected_menu == "Off"))
+        K.POWER_USER_GROUP: gr.update(visible=(active_menu == "Power User")), # type: ignore
+        K.LORA_GROUP: gr.update(visible=(active_menu == "LoRA")),
+        K.ADVANCED_SETTINGS_GROUP: gr.update(visible=(active_menu == "Advanced")),
+        # Show the small, 2-column video player when a setting menu is open.
+        K.LAST_FINISHED_VIDEO: gr.update(visible=is_settings_open, value=last_video_path),
+        # Show the full-width video player when all settings are closed.
+        K.FULL_WIDTH_LAYOUT_ROW: gr.update(visible=not is_settings_open),
+        K.LAST_FINISHED_VIDEO_FULL_WIDTH: gr.update(value=last_video_path),
+        # Enforce single selection in the UI by updating its value
+        K.SETTINGS_MENU_CHECKBOX_GROUP: gr.update(value=update_value)
     }
 
 # Define the button keys in a fixed order for consistent output.

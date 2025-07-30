@@ -139,8 +139,23 @@ def load_and_apply_workspace_on_start() -> dict:
     # The settings_values_map uses ComponentKey enums as keys.
     video_duration = settings_values_map.get(K.VIDEO_LENGTH_SLIDER, 5.0)
     fps = settings_values_map.get(K.FPS_SLIDER, 30)
-    segments_update_dict = event_handler_helpers.ui_update_total_segments(video_duration, fps)
-    all_updates.update(segments_update_dict)
+    segments_update_dict = event_handler_helpers.ui_update_total_segments(video_duration, fps) # This now returns an update for K.VIDEO_LENGTH_SLIDER
+
+    # Manually merge the updates for the video length slider to preserve both the 'value'
+    # loaded from settings and the 'info' text calculated from the segments.
+    # A simple dict.update() would overwrite one with the other.
+    slider_update_from_settings = all_updates.get(K.VIDEO_LENGTH_SLIDER, gr.update())
+    slider_update_from_segments = segments_update_dict.get(K.VIDEO_LENGTH_SLIDER, gr.update())
+    
+    combined_attrs = {}
+    # A gr.update() object is a dictionary. We check for its type marker and merge its contents.
+    if isinstance(slider_update_from_settings, dict) and slider_update_from_settings.get('__type__') == 'update':
+        combined_attrs.update({k: v for k, v in slider_update_from_settings.items() if k != '__type__'})
+    
+    if isinstance(slider_update_from_segments, dict) and slider_update_from_segments.get('__type__') == 'update':
+        combined_attrs.update({k: v for k, v in slider_update_from_segments.items() if k != '__type__'})
+
+    all_updates[K.VIDEO_LENGTH_SLIDER] = gr.update(**combined_attrs)
 
     # 6. Return the final, aggregated dictionary of all UI updates.
     return all_updates

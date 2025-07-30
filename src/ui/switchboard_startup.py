@@ -23,8 +23,7 @@ def wire_events(components: dict):
         [
             K.INPUT_IMAGE_DISPLAY, K.CLEAR_IMAGE_BUTTON, K.DOWNLOAD_IMAGE_BUTTON, K.IMAGE_FILE_INPUT
         ] +
-        event_handler_helpers.BUTTON_KEYS +
-        [K.TOTAL_SEGMENTS_DISPLAY]
+        event_handler_helpers.BUTTON_KEYS
     )
     startup_output_components = [components[key] for key in startup_output_keys]
 

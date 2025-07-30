@@ -34,7 +34,7 @@ class SettingsManager:
             K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX: '',
             K.FPS_SLIDER: 30,
             K.DISTILLED_CFG_START_SLIDER: 10.0,
-            K.VARIABLE_CFG_SHAPE_RADIO: 'Off',
+            K.VARIABLE_CFG_SHAPE_RADIO: "Off",
             K.DISTILLED_CFG_END_SLIDER: 10.0,
             K.ROLL_OFF_START_SLIDER: 75,
             K.ROLL_OFF_FACTOR_SLIDER: 1.0,
@@ -47,8 +47,8 @@ class SettingsManager:
             K.MP4_CRF_SLIDER: 18,
             K.OUTPUT_FOLDER_TEXTBOX: self.outputs_folder,
             K.LATENT_WINDOW_SIZE_SLIDER: 9,
-            
-            K.SETTINGS_MENU_RADIO: "Off",
+
+            K.SETTINGS_MENU_CHECKBOX_GROUP: None,
         }
 
     def _get_typed_value(self, key: K, value: Any, default_values: Dict[K, Any]) -> Any:

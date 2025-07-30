@@ -57,19 +57,17 @@ class ComponentKey(StrEnum):
     CURRENT_TASK_PREVIEW_IMAGE = auto()
     CURRENT_TASK_PROGRESS_DESCRIPTION = auto()
     CURRENT_TASK_PROGRESS_BAR = auto()
-    PROCESSING_PROGRESS_BARS = auto()
     LAST_FINISHED_VIDEO = auto()
     FULL_WIDTH_LAYOUT_ROW = auto()
     LAST_FINISHED_VIDEO_FULL_WIDTH = auto()
 
     # --- Accordions & Advanced Settings ---
-    TOTAL_SEGMENTS_DISPLAY = auto()
     PREVIEW_FREQUENCY_SLIDER = auto()
     PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX = auto()
     FPS_SLIDER = auto()
 
     # --- Settings Panels ---
-    SETTINGS_MENU_RADIO = auto()
+    SETTINGS_MENU_CHECKBOX_GROUP = auto()
     POWER_USER_GROUP = auto()
     LORA_GROUP = auto()
     ADVANCED_SETTINGS_GROUP = auto()

@@ -132,12 +132,13 @@ class LoRAManager:
                 if module_path not in self._original_params[model_target_key]:
                     self._original_params[model_target_key][module_path] = target_layer.weight.clone()
 
-                # Calculate scale
-                alpha = lora_tensors.get(alpha_key, torch.tensor(float(rank))).item()
-                scale = alpha / rank if rank > 0 else 1.0
+                down_w = translated_lora_tensors[down_key].to(device, dtype=dtype)
+                up_w = translated_lora_tensors[up_key].to(device, dtype=dtype)
 
-                down_w = lora_tensors[down_key].to(device, dtype=dtype)
-                up_w = lora_tensors[up_key].to(device, dtype=dtype)
+                # Calculate scale
+                rank = down_w.shape[0] # Infer rank from the LoRA tensor itself
+                alpha = translated_lora_tensors.get(alpha_key, torch.tensor(float(rank))).item()
+                scale = alpha / rank if rank > 0 else 1.0
                 delta_w = None
 
                 if isinstance(target_layer, nn.Linear):
@@ -179,9 +180,12 @@ class LoRAManager:
                     # The module_path is the full path to the layer itself (e.g., 'transformer_blocks.0.attn.to_q').
                     # We need to get the layer module, not its parent.
                     target_layer = _get_module(model, module_path)
+                    model_device = target_layer.weight.device
+                    # Ensure the backed-up parameter is on the correct device before restoring.
+                    param_to_restore = original_param.to(model_device)
                     # The original_param is a raw tensor, so it must be wrapped in nn.Parameter
                     # to correctly restore the weight of the layer.
-                    target_layer.weight = nn.Parameter(original_param, requires_grad=False)
+                    target_layer.weight = nn.Parameter(param_to_restore, requires_grad=False)
                     reverted_count += 1
                 except Exception as e:
                     logger.error(f"Failed to revert parameter for module {module_path} in model {model_key}: {e}", exc_info=True)

@@ -49,12 +49,12 @@ def wire_events(components: dict):
     ))
 
     # --- Wire Total Segments Calculation ---
-    # This was previously unwired and is now fixed.
     segment_calc_inputs = [
         components[K.VIDEO_LENGTH_SLIDER],
         components[K.FPS_SLIDER]
     ]
-    segment_calc_output_keys = [K.TOTAL_SEGMENTS_DISPLAY]
+    # The output is now the slider itself, to update its 'info' property.
+    segment_calc_output_keys = [K.VIDEO_LENGTH_SLIDER]
     segment_calc_output_components = [components[k] for k in segment_calc_output_keys]
 
     for component in segment_calc_inputs:
@@ -74,12 +74,19 @@ def wire_events(components: dict):
         K.POWER_USER_GROUP,
         K.LORA_GROUP,
         K.ADVANCED_SETTINGS_GROUP,
+        K.LAST_FINISHED_VIDEO,
+        K.FULL_WIDTH_LAYOUT_ROW,
+        K.SETTINGS_MENU_CHECKBOX_GROUP, # The handler now also updates the checkbox group itself.
+        K.LAST_FINISHED_VIDEO_FULL_WIDTH,
     ]
     settings_menu_output_components = [components[k] for k in settings_menu_output_keys]
 
-    (components[K.SETTINGS_MENU_RADIO].change(
+    (components[K.SETTINGS_MENU_CHECKBOX_GROUP].change(
         fn=helpers.handle_settings_menu_change,
-        inputs=[components[K.SETTINGS_MENU_RADIO]],
+        inputs=[
+            components[K.SETTINGS_MENU_CHECKBOX_GROUP],
+            components[K.APP_STATE]
+        ],
         outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(
         fn=partial(apply_updates, output_keys=settings_menu_output_keys, components_map=components),

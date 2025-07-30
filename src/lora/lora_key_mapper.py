@@ -23,6 +23,8 @@ def _convert_hunyuan_keys_to_framepack(lora_sd: dict[str, torch.Tensor]) -> dict
     """
     logger.info("Hunyuan-format LoRA detected, attempting to convert keys...")
     new_lora_sd = OrderedDict()
+    # This dictionary maps layer names found in common "wild" LoRAs (the key)
+    # to the corresponding layer name in the FramePack model (the value).
     hunyuan_key_replacements = {
         "double_blocks": "transformer_blocks", "img_mod_linear": "norm1_linear",
         "img_attn_qkv": "attn_to_QKV", "img_attn_proj": "attn_to_out_0",
@@ -31,6 +33,8 @@ def _convert_hunyuan_keys_to_framepack(lora_sd: dict[str, torch.Tensor]) -> dict
         "txt_attn_proj": "attn_to_add_out", "txt_mlp_fc1": "ff_context_net_0_proj",
         "txt_mlp_fc2": "ff_context_net_2", "single_blocks": "single_transformer_blocks",
         "linear1": "attn_to_QKVM", "linear2": "proj_out", "modulation_linear": "norm_linear",
+        # --- Dummy Example for adding a new rule ---
+        # "name_in_lora_file": "name_in_framepack_model",
     }
 
     for key, weight in lora_sd.items():
