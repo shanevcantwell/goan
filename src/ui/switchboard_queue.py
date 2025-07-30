@@ -52,8 +52,11 @@ def wire_events(components: dict):
         components[K.QUEUE_DF],
         components[K.LAST_FINISHED_VIDEO],
         components[K.CURRENT_TASK_PREVIEW_IMAGE],
-        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION],
-        components[K.CURRENT_TASK_PROGRESS_BAR],
+        
+        # Removed from alpha 0.2 scope - **TODO: can this be refactored out of this hard pipeline implementation?**
+        # components[K.CURRENT_TASK_PROGRESS_DESCRIPTION],
+        # components[K.CURRENT_TASK_PROGRESS_BAR],
+        
         components[K.PROCESS_QUEUE_BUTTON],
         components[K.CREATE_PREVIEW_BUTTON],
         components[K.CLEAR_QUEUE_BUTTON],

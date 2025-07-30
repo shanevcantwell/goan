@@ -58,22 +58,14 @@ def create_ui():
                         info="Calculated: 5 Segments, 150 Total Frames"
                     )
                 with gr.Column(scale=2, min_width=600):
-                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=11, max_lines=11, elem_id="positive_prompt")
-                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=4, max_lines=4, elem_id="negative_prompt")
+                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=9, max_lines=9, elem_id="positive_prompt")
+                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=3, max_lines=3, elem_id="negative_prompt")
 
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
             components[K.QUEUE_DOWNLOADER] = gr.File(visible=False, elem_id="queue_downloader_hidden_file")
 
-        with gr.Row(visible=True) as processing_progress_bars:
-            components['PROCESSING_PROGRESS_BARS'] = processing_progress_bars
-            with gr.Column():
-                components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
-                components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
-            with gr.Column():
-                components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
-                components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
         with gr.Row(equal_height=True):
             with gr.Column(scale=1):
                 with gr.Row():
@@ -86,7 +78,7 @@ def create_ui():
                     visible=True, # Starts hidden, made visible by the agent during processing.
                     show_download_button=False,
                     elem_id="current_task_preview_image_ui",
-                    height=50
+                    height=23
                 )
         with gr.Row():
             with gr.Column(scale=1):
@@ -174,16 +166,15 @@ def create_ui():
                     components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required** for new output path to take effect.", visible=False)
         
             with gr.Column(scale=2):
+                    # with gr.Column(scale=1):
                 with gr.Row():
-                    with gr.Column(scale=1):
-                        components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
-                        components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
-                    with gr.Column(scale=1):
-                        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
-                        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
-
+                    components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
+                    components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
                 components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(visible=False, autoplay=False, height=540)
+                # components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
+                # components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+
 
         # Full width video                
         with gr.Row() as full_width_layout_row:
