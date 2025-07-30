@@ -40,6 +40,16 @@ MAIN_CSS = """
     border-left: 1px solid var(--border-color-primary) !important;
 }
 
+/* --- DEFINITIVE FIX FOR T06 (Inspector-based) --- */
+/* Hide the component's label, which is a span with a specific data-testid */
+#settings_menu_checkbox_group span[data-testid="block-info"] {
+    display: none !important;
+}
+/* Remove the border from the fieldset itself, which has both the ID and the class */
+fieldset#settings_menu_checkbox_group.button-group {
+    border: none !important;
+}
+
 #queue_df { font-size: 0.9rem; }
 
 /* --- Task Queue Column Styling --- */

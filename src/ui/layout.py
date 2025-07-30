@@ -102,9 +102,9 @@ def create_ui():
             with gr.Column(scale=1):
                 components[K.SETTINGS_MENU_CHECKBOX_GROUP] = gr.CheckboxGroup(
                     ["Power User", "LoRA", "Advanced"],
-                    label=None,
-                    value=None, # Default is nothing selected, which means "Off"
-                    elem_classes="button-group",
+                    value=None,
+                    elem_classes=["button-group"], # Use button-group for internal styling
+                    elem_id="settings_menu_checkbox_group", # Add ID for specific overrides                    elem_classes=["button-group", "borderless-container"], # Keep button style, add class to remove border
                     type="value",
                     interactive=True,
                 )
