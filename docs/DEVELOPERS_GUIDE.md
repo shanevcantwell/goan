@@ -76,9 +76,9 @@ The interactivity of the main control buttons is managed by a single function, `
 
 | Application State | `Process Queue` Button | `Add Task` Button | `Create Preview` Button | Other Buttons |
 | :--- | :--- | :--- | :--- | :--- |
-| **Stopping** | `Stopping...` (disabled) | Disabled | Disabled | Disabled |
-| **Processing** | `Stop Processing` (enabled) | Enabled (if image present) | Enabled (as a toggle) | `Clear Queue` enabled (if pending tasks exist). Others disabled. |
-| **Idle** | Enabled (if queue has tasks) | Enabled (if image present) | Disabled | `Save Queue`, `Clear Queue`, `Clear/Download Image` enabled based on context. |
+| **Stopping** | `Stopping...` (enabled, stop variant) | Enabled | Disabled | `Clear/Download Image` enabled. `Save/Clear Queue` disabled. |
+| **Processing** | `Stop Processing` (enabled, stop variant) | Enabled (if image present) | Enabled (as a toggle) | `Save/Clear Queue` and `Clear/Download Image` enabled based on context. |
+| **Idle** | Enabled (if queue has tasks) | Enabled (if image present) | Disabled | `Save/Clear Queue` and `Clear/Download Image` enabled based on context. |
 
 ---
 
@@ -110,13 +110,29 @@ The application allows users to save and load their exact generation settings by
     4.  If found, the parameters are extracted, and a confirmation modal is shown to the user.
     5.  If the user agrees, the `handle_confirm_metadata` function is called, which returns a dictionary of `gr.update()` objects to populate the UI.
 
+*   **Metadata Schema Example**:
+    To make recipes fully portable, LoRA settings are also saved. The parameters are stored as a JSON object under the `goan_params` key inside the PNG's metadata. Here is an example of the structure:
+
+    ```json
+    "parameters": {
+        "prompt": "a beautiful landscape",
+        "seed": 12345,
+        "loras": [
+            {
+                "name": "MyCharacterV2.safetensors",
+                "weight": 0.75,
+                "targets": ["transformer", "text_encoder"]
+            }
+        ]
+    }
+    ```
 ---
 
 ### LoRA Application and Reversion (Single LoRA)
 
 The current implementation supports applying a single LoRA per task queue run. The system is designed to be robust, handling the entire lifecycle of applying and reverting LoRA weights without leaving the models in a modified state. The core logic resides in the `LoRAManager` class in `src/ui/lora.py`.
 
-*   **Workflow**: The user places `.safetensors` files in the `./src/loras` directory. The UI presents a simple dropdown menu to select one of these files to be applied to all tasks in the next generation queue. All multi-LoRA or URL-based features are deferred.
+*   **Workflow**: The user can upload a `.safetensors` file via the "Upload LoRA" button in the "LoRA" settings panel. The file is copied to a local `./loras` cache directory. The UI then displays controls to set the weight and target models for this single LoRA, which will be applied to all tasks in the next queue run. All multi-LoRA or URL-based features are deferred.
 
 *   **Lifecycle**: The `ProcessingAgent` creates a `LoRAManager` instance at the start of a queue run. It applies all configured LoRAs and ensures `revert_all_loras` is called in a `finally` block, guaranteeing that models are cleaned up even if an error occurs.
 
@@ -130,6 +146,43 @@ The current implementation supports applying a single LoRA per task queue run. T
     *   **Unknown Keys**: The key translator is based on common LoRA formats. It is possible to encounter a LoRA with a novel key naming scheme that the translator does not recognize. In such cases, the LoRA may fail to apply to any layers.
 
 *   **UI Feedback**: To address the inconsistent nature of wild LoRAs, the `apply_lora` function provides immediate feedback to the user via a `gr.Info` or `gr.Warning` popup, reporting exactly how many layers were successfully merged. This instantly tells the user if a given LoRA is compatible with the selected model targets.
+
+    #### How to Add a New LoRA Key Mapping
+
+    If you encounter a LoRA that fails to map correctly, you may need to add a new translation rule. The first step is to diagnose the mismatch using the provided inspection tool:
+
+    ```bash
+    python src/lora/lora_key_inspector.py /path/to/your/lora.safetensors
+    ```
+
+    This script will print a report showing which keys from the LoRA file were successfully mapped and, more importantly, which were not. You can use the list of unmapped keys to determine the necessary translations.
+
+    All translation logic resides in `src/lora/lora_key_mapper.py`. There are two primary places to add rules:
+
+    1.  **For Simple Prefix Changes**: If a LoRA uses a different top-level prefix (e.g., `lora_sdxl_...` instead of `lora_unet_...`), add a new entry to the `KEY_PREFIX_TRANSLATION_RULES` dictionary. This is for simple, global replacements.
+
+        ```python
+        # In: src/lora/lora_key_mapper.py
+        KEY_PREFIX_TRANSLATION_RULES = {
+            "lora_unet_": "transformer.",
+            # ... other rules ...
+            "new_lora_prefix_": "transformer.", # Add your new rule here
+        }
+        ```
+
+    2.  **For Internal Layer Name Changes**: If the internal layer names are different (e.g., the LoRA uses `attention_block` while the model expects `attn`), you need to add a rule to the `hunyuan_key_replacements` dictionary inside the `_convert_hunyuan_keys_to_framepack` function. The file contains a commented-out dummy example to use as a template.
+
+        ```python
+        # In: src/lora/lora_key_mapper.py, inside _convert_hunyuan_keys_to_framepack()
+        hunyuan_key_replacements = {
+            "double_blocks": "transformer_blocks",
+            # ... other rules ...
+            # --- Dummy Example for adding a new rule ---
+            # "name_in_lora_file": "name_in_framepack_model",
+        }
+        ```
+
+    By adding rules to these dictionaries, you can extend the application's compatibility with a wider range of community-provided LoRAs.
 
 *   **Device-Aware Reversion**: The `revert_all_loras` function is carefully designed to prevent device mismatch errors. When restoring a backed-up weight from CPU memory to a model that is currently on the GPU, it explicitly calls `.to(model_device)` on the parameter before assigning it. This prevents the common `RuntimeError: Expected all tensors to be on the same device...` that can occur in complex, memory-managed pipelines.
 

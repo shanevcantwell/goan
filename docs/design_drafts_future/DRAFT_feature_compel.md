@@ -4,58 +4,107 @@
 -   **Author**: Gemini Code Assist
 -   **Date**: 2025-07-12
 -   **Status**: Proposed
+-   **Target Milestone**: Alpha 0.3
 
 ---
 
 ## 1. Summary
 
-This document proposes the integration of the [Compel](https://github.com/damian0815/compel) library to replace the current basic prompt processing system. The goal is to enable advanced prompt syntax, such as token weighting `(word:1.2)`, prompt alternating `[word1|word2]`, and other community-standard features that allow for fine-grained artistic control over the generation process.
+This document outlines the plan to integrate the `Compel` library into `goan`. The objective is to replace the current basic prompt tokenization with a powerful parsing engine that supports industry-standard syntax for advanced creative control. This includes features like token weighting (e.g., `(word:1.2)`), token blending/alternation (e.g., `[word1|word2]`), and other expressive syntaxes. This enhancement will significantly increase the creative ceiling of the application, aligning it with professional-grade tools.
 
 ---
 
 ## 2. Problem
 
-Currently, the application treats the positive and negative prompt fields as literal strings. This approach is simple and reliable but lacks the expressive power that artists have come to expect from modern generative AI tools. Key features that are standard in other UIs are unavailable:
+The current implementation treats prompts as simple strings. While functional, this approach lacks the nuanced control required by advanced users. Key limitations include:
 
--   **Token Weighting**: Increasing or decreasing the emphasis of specific words or phrases (e.g., `a (blue:1.3) car`).
--   **Prompt Blending/Alternating**: Scheduling different concepts to appear at different steps in the diffusion process.
--   **Escape Characters**: Inability to properly handle special characters that are part of the prompt syntax.
-
-This limitation restricts creative control and makes it difficult to port or replicate complex prompts from other platforms.
+*   **No Emphasis Control**: It's impossible to increase or decrease the conceptual weight of specific words or phrases in the prompt (e.g., making a "huge mountain" even more prominent).
+*   **No Concept Blending**: The model cannot be guided to blend or alternate between concepts (e.g., generating an image that is a mix of a `[cat|dog]`).
+*   **Creative Ceiling**: The lack of advanced syntax limits the user's ability to precisely guide the diffusion model, making it harder to achieve specific artistic outcomes.
 
 ---
 
 ## 3. Proposed Solution
 
-We will integrate the Compel library to handle all prompt parsing and conditioning.
+The solution is to delegate all prompt parsing to the `Compel` library within the backend worker, requiring minimal changes to the UI and existing data structures.
 
-1.  **Dependency**: Add `compel` as a project dependency.
-2.  **Integration Point**: The integration will occur within the `worker` function in `src/core/generation_core.py`, just before the main generation loop begins.
-3.  **Workflow**:
-    -   Inside the `worker`, an instance of `Compel` will be created, initialized with the application's text encoders and tokenizer.
-    -   The positive and negative prompt strings from the task parameters will be passed to Compel's `build_conditioning_tensor` method.
-    -   Compel will parse the syntax and return the final `conditioned_embeddings` and `unconditioned_embeddings` tensors.
-    -   These tensors will then be used as the `prompt_embeds` and `negative_prompt_embeds` for the duration of the generation task, replacing the direct text-to-embedding logic currently in place.
+1.  **Backend Integration**: The core of the work will be in `src/core/inference_helpers.py`. The `prepare_conditioning_tensors` function, which is responsible for converting text prompts into tensor embeddings, will be modified. Instead of using the basic `encode_prompt_conds` helper, it will instantiate and use `Compel` parsers.
+
+2.  **Dual Parser Requirement**: The Hunyuan-DiT model architecture uses two distinct text encoders (`CLIP-L/14` and a multilingual `T5-XXL`). Therefore, two separate `Compel` instances will be created and configured for their respective tokenizers and text encoders.
+
+3.  **UI Enhancement**: The UI text boxes in `src/ui/layout.py` will remain unchanged. To inform users of the new capability, a small, non-intrusive `gr.Markdown` element will be added below the prompt inputs, providing a brief explanation and examples of the supported syntax.
 
 ---
 
-## 4. Historical Context & Implementation Notes
+## 4. Implementation Details
 
-An attempt to implement this feature was made very early in the project's history. It proved to be surprisingly difficult at the time, likely due to challenges in correctly integrating Compel with the Hunyuan model's specific text encoder architecture or potential environment conflicts.
+### 4.1. Dependency
 
-A review of the early git history is recommended, as a partially or fully working solution may exist that can be used as a reference. The key challenge will be ensuring that the `Compel` object is instantiated with the correct model components and that the output tensors are correctly shaped and typed for the `HunyuanDiT` transformer.
+The `compel` library will be added as a new dependency to the project's `requirements.txt`.
+
+### 4.2. Backend (`src/core/inference_helpers.py`)
+
+The `prepare_conditioning_tensors` function will be refactored. The current logic will be replaced with `Compel` calls.
+
+**Conceptual "After" Snippet:**
+
+```python
+# In src/core/inference_helpers.py
+from compel import Compel
+
+# ... inside prepare_conditioning_tensors ...
+
+# 1. Instantiate a Compel parser for each text encoder
+compel_te1 = Compel(tokenizer=tokenizer, text_encoder=text_encoder)
+compel_te2 = Compel(tokenizer=tokenizer_2, text_encoder=text_encoder_2)
+
+# 2. Process the positive prompt
+prompt_embeds_te1 = compel_te1(prompt)
+# For T5, Compel returns a tuple; we need the second element (pooled output)
+pooled_prompt_embeds_te2 = compel_te2(prompt)[1]
+
+# 3. Concatenate as required by Hunyuan-DiT
+prompt_embeds = torch.concat([prompt_embeds_te1, pooled_prompt_embeds_te2], dim=-1)
+
+# 4. Repeat the process for the negative prompt
+neg_prompt_embeds_te1 = compel_te1(negative_prompt)
+pooled_neg_prompt_embeds_te2 = compel_te2(negative_prompt)[1]
+neg_prompt_embeds = torch.concat([neg_prompt_embeds_te1, pooled_neg_prompt_embeds_te2], dim=-1)
+
+# ... continue with the rest of the function ...
+```
+
+### 4.3. Frontend (`src/ui/layout.py`)
+
+A `gr.Markdown` component will be added below the prompt text areas to guide the user.
+
+```python
+# In src/ui/layout.py, within the main parameters column
+
+gr.Textbox(label="Prompt", elem_id="prompt_textbox", scale=19, **K.PROMPT.to_dict())
+gr.Markdown(
+    "**Pro Tip:** Use `(word:1.2)` to increase weight, `(word:0.8)` to decrease, and `[word1|word2]` for alternation.",
+    elem_classes=["small-text-label"]
+)
+```
 
 ---
 
-## 5. Benefits
+## 5. Error Handling
 
--   **Unlocks Advanced Artistry**: Provides users with powerful, industry-standard tools for prompt engineering.
--   **Improves Compatibility**: Allows users to seamlessly use prompts and techniques from other popular platforms like Automatic1111 and ComfyUI.
--   **Simplifies Code**: Offloads the complexity of prompt parsing to a dedicated, well-maintained library, simplifying the core generation logic.
+`Compel` will raise an exception if it encounters invalid syntax (e.g., `(word:1.2`). This is a feature, not a bug.
+
+1.  **Catching Errors**: The `compel_parser()` calls within `prepare_conditioning_tensors` will be wrapped in a `try...except` block.
+2.  **Reporting to User**: If an error is caught, the `worker` in `generation_core.py` will immediately push an `('error', (task_id, "Invalid prompt syntax: ..."))` message to the UI.
+3.  **Fail-Fast**: This ensures that a task with an invalid prompt fails immediately with clear feedback, rather than attempting a lengthy and doomed generation process.
 
 ---
 
-## 6. Risks
+## 6. Impact on Existing Systems
 
--   **Integration Complexity**: As noted, this has been challenging before. Careful debugging will be needed to ensure the text encoders are passed to Compel correctly.
--   **Dependency Conflicts**: The `compel` library may have dependencies that conflict with the current environment. This will need to be verified.
+This feature is designed to be a drop-in enhancement with no negative impact on existing functionality.
+
+*   **PNG Metadata ("Recipes")**: **Fully compatible.** The raw prompt string, including any Compel syntax, is what gets saved to the image metadata. When a user loads this image, the backend will correctly parse the advanced syntax, ensuring perfect reproducibility.
+*   **Queue Management**: **No impact.** The `QueueManager` will continue to store the raw prompt strings as it currently does. The parsing happens just-in-time within the worker.
+
+This approach ensures that the new power-user features integrate seamlessly into the application's robust "recipe" and queueing systems.

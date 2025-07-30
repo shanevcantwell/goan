@@ -4,15 +4,15 @@ This document outlines the planned development milestones for `goan`. The goal i
 
 ---
 
-## **Milestone 1: Alpha 0.1 - The Stable Foundation (Released)**
+## **Milestone 1: Alpha 0.1 - Stable Foundation (Released)**
 
 **Primary Objective:** Release a bug-free, internally consistent version of `goan` that delivers a complete and reliable core user experience.
 
 ### Key Features & Requirements:
 
-*   **Robust Queue Management:** (Weak implementation deprecated)
-    *   Fully working queue controls: add, delete, and reorder tasks.
-    *   Immediate and clear UI feedback for all button clicks.
+*   **Robust Queue Management:** (questionable 10-column implementation deprecated)
+    *   ~~Fully working queue controls: add, delete, and reorder tasks.~~
+    *   ~~Immediate and clear UI feedback for all button clicks.~~
     *   Graceful UI reconnection to a live backend service in a single-user context.
 
 *   **Polished User Interface:**
@@ -21,34 +21,42 @@ This document outlines the planned development milestones for `goan`. The goal i
     
 ## **Milestone 2: Alpha 0.2 - Polish & Reliability Hardening (In Progress)**
 
-**Primary Objective:** Finalize the UI for a professional workflow and solidify the application's architecture for future expansion.
+**Primary Objective:** Provide addtional power user functionality in the UI for a professional workflow and solidify the application's architecture for future expansion.
 
 ### Key Features & Requirements:
-*   **"Handler-Returns-Dict" Architecture:** Completed a major internal refactor to decouple UI event logic from the UI layout. This eliminated a whole class of `ValueError` bugs, made the codebase significantly more robust and maintainable, and laid the groundwork for future feature expansion.
-*   **UI Polish:** Finalizing UI layout, button interactivity, and overall workflow clarity.
-*   **In-Queue Task Editing:**
-    *   **Goal**: Allow a user to modify the parameters of a task already in the queue without needing to delete and recreate it.
-    *   **Reference**: `DRAFT_feature_edit_task.md`
+*   **UI Polish:** Finalizing initial UI layout, button interactivity, and overall workflow clarity.
 
 ---
 
-## **Milestone 3: Alpha 0.3 - Power User Features**
+## **Milestone 3: Alpha 0.3 - Task Resumption & Recovery**
+
+**Primary Objective:** Implement a crash-proof task resumption feature to protect users from losing work during long generation tasks.
+
+### Key Features & Requirements:
+*   **Task Checkpointing & Resumption**: Implement a crash-proof task resumption feature using transactional `.goan_resume` files. This allows users to recover from application crashes or intentional pauses without losing significant progress.
+*   **Reference**: `DRAFT_feature_resume.md`
+
+---
+
+## **Milestone 4: Alpha 0.4 - Power User Features**
 
 **Primary Objective:** Introduce features that significantly expand the creative and technical capabilities for advanced users.
 
 ### Key Features & Requirements:
-*   **Full Task Pause & Resume:**
-    *   Implement the full checkpointing and resumption logic as designed in `DRAFT_feature_resume.md`.
-    *   This will allow a task to be gracefully paused and resumed later, or recovered after a crash from the last saved segment.
 *   **Multi-LoRA Support:** Extend the UI and backend to support applying multiple LoRAs simultaneously.
 *   **LoRA Metadata Portability (Phase 1):** Save and load a single LoRA's configuration (`name`, `weight`, `targets`) to/from PNG metadata.
+
+---
+
+## **Milestone 5: Alpha 0.5 - Advanced Prompting (Compel)**
+
 *   **Compel Integration for Advanced Prompting:**
     *   **Goal**: Replace basic string prompting with the `Compel` library to support industry-standard syntax like token weighting `(word:1.2)` and prompt alternating `[word1|word2]`.
     *   **Reference**: `DRAFT_feature_compel.md`
 
 ---
 
-## **Milestone 4: Future - Advanced Capabilities**
+## **Milestone 6: Future - Advanced Capabilities**
 
 **Primary Objective:** Implement the "big idea" features that unlock new creative potential.
 
@@ -58,7 +66,7 @@ This document outlines the planned development milestones for `goan`. The goal i
 
 ---
 
-## **Milestone 5: Architectural Refactoring**
+## **Milestone 7: Future - Architectural Refactoring**
 
 **Primary Objective:** Improve the application's scalability, security, and maintainability for long-term health and potential multi-user support.
 
@@ -69,3 +77,11 @@ This document outlines the planned development milestones for `goan`. The goal i
 *   **Phase 2: Secure, Temporary Video Serving**
     *   **Goal**: Stop writing generated videos to a public `outputs` folder. Instead, save them to a temporary, non-public location and serve them to the UI via short-lived, signed URLs.
     *   **Reference**: `DRAFT_feature_multiuser_image_handling.md`
+
+---
+
+## Future & Post-Alpha Ideas (Low Priority)
+
+This section lists features and enhancements that are considered valuable but are not on the critical path for the initial alpha releases. They are candidates for future development cycles.
+
+*   **In-UI LoRA Inspector**: Integrate the command-line LoRA key inspector tool into the UI for easier debugging of incompatible LoRAs, as outlined in `DRAFT_feature_lora_inspector_ui.md`.
