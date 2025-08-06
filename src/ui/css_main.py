@@ -18,6 +18,23 @@ MAIN_CSS = """
     box-shadow: none !important;
 }
 
+/* --- NEW: Utility Class for Flat Inputs (T02) --- */
+/* Removes default styling from textboxes and other inputs for a seamless look. */
+.flat-input {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+/* Target the inner textarea element specifically, as it often has its own border. */
+.flat-input textarea {
+    background-color: transparent !important;
+}
+/* Target the image component's inner wrapper to remove its border. */
+.flat-input > div[data-testid="image"] {
+    border: none !important;
+}
+
+
 /* --- Connected Button Group Styling --- */
 /* Creates a visually connected group of buttons in a row. Applied via elem_classes="button-group". */
 /* This new approach gives the container the border and removes it from the inner buttons,
@@ -52,20 +69,29 @@ fieldset#settings_menu_checkbox_group.button-group {
 
 #queue_df { font-size: 0.9rem; }
 
-/* --- Task Queue Column Styling --- */
+/* --- Task Queue Column Styling (T03) --- */
 /* Use a fixed table layout to enforce column widths accurately. */
 #queue_df table {
     table-layout: fixed;
     width: 100%;
+    border-collapse: collapse; /* Ensures borders are clean */
 }
 
-/* Default for all headers/cells: vertical alignment and basic padding. */
+/* Default for all headers/cells: vertical alignment and a subtle bottom border. */
 #queue_df th, #queue_df td {
     vertical-align: middle;
-    padding: 4px;
+    padding: 4px 8px;
+    border: none; /* Remove all default borders */
+    border-bottom: 1px solid var(--border-color-primary); /* Add a subtle separator */
 }
 
-/* --- NEW: Scrollable Prompt Cell --- */
+/* Style the header row for emphasis */
+#queue_df th {
+    font-weight: bold;
+    background-color: #2a313f; /* Slightly lighter than the main background */
+}
+
+/* --- NEW: Scrollable Prompt Cell (T03) --- */
 /* This allows long prompts in the queue to be scrollable instead of taking up excess vertical space. */
 .prompt-cell-scrollable {
     max-height: 6em; /* Sets a max height of about 4-5 lines of text */
@@ -94,25 +120,23 @@ fieldset#settings_menu_checkbox_group.button-group {
 }
 
 /* Status Column (1): Fixed width, left-aligned, allows wrapping. */
-#queue_df th:nth-child(6), #queue_df td:nth-child(6) {
+#queue_df th:nth-child(1), #queue_df td:nth-child(1) {
     width: 8rem; /* Wide enough for "⏳ Processing" */
     text-align: left;
     white-space: normal; /* Allow text to wrap */
 }
 
-/* Prompt Column (7): Flexible width, left-aligned, truncates with ellipsis. */
+/* Prompt Column (2): Flexible width, left-aligned. */
 #queue_df th:nth-child(2), #queue_df td:nth-child(2) {
     text-align: left;
     width: 40%; /* Adjust the width as needed */
     min-width: 10rem; /* Minimum width */
-    white-space: normal; /* Allow text to wrap */
-    word-break: break-word; /* Ensure long words break */
 }
 
-/* Image (8), Length (9), ID (10) Columns: Fixed width, centered. */
+/* Image (3), Length (4), ID (5) Columns: Fixed width, centered. */
 #queue_df th:nth-child(3), #queue_df td:nth-child(3) { width: 4rem; text-align: center; }
-#queue_df th:nth-child(9), #queue_df td:nth-child(9) { width: 4rem; text-align: center; }
-#queue_df th:nth-child(10), #queue_df td:nth-child(10) { width: 3rem; text-align: center; }
+#queue_df th:nth-child(4), #queue_df td:nth-child(4) { width: 4rem; text-align: center; }
+#queue_df th:nth-child(5), #queue_df td:nth-child(5) { width: 3rem; text-align: center; }
 
 .gradio-container { max-width: 95% !important; margin: auto !important; }
 :root {
@@ -134,13 +158,13 @@ fieldset#settings_menu_checkbox_group.button-group {
 .gr-button-primary:not([disabled]) { background-color: var(--color-accent-500) !important; color: white !important; }
 .gr-button-primary:not([disabled]):hover { background-color: var(--color-accent-600) !important; }
 
-/* Custom blue color for specific action buttons */
+/* Custom blue color for specific action buttons (T05) */
 #clear_image_button:not([disabled]), #download_image_button:not([disabled]) {
-    background-color: #3b82f6 !important; /* A softer, less intense blue */
+    background-color: #2563eb !important; /* A darker, less intense blue (Tailwind blue-600) */
     color: white !important;
 }
 #clear_image_button:not([disabled]):hover, #download_image_button:not([disabled]):hover {
-    background-color: #2563eb !important; /* A slightly darker blue for hover */
+    background-color: #1d4ed8 !important; /* A slightly darker blue for hover (Tailwind blue-700) */
 }
 
 /* --- Consistent Disabled Button Styling --- */
