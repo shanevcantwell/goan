@@ -87,7 +87,7 @@
     {
       "task_id": "T06",
       "title": "Refine Creative Options Checkbox Group",
-      "status": "pending",
+      "status": "completed SVC 250730",
       "component_keys": [
         "SETTINGS_MENU_CHECKBOX_GROUP"
       ],
