@@ -35,6 +35,23 @@ MAIN_CSS = """
 }
 
 
+/* --- NEW: Utility Class for Flat Inputs (T02) --- */
+/* Removes default styling from textboxes and other inputs for a seamless look. */
+.flat-input {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+/* Target the inner textarea element specifically, as it often has its own border. */
+.flat-input textarea {
+    background-color: transparent !important;
+}
+/* Target the image component's inner wrapper to remove its border. */
+.flat-input > div[data-testid="image"] {
+    border: none !important;
+}
+
+
 /* --- Connected Button Group Styling --- */
 /* Creates a visually connected group of buttons in a row. Applied via elem_classes="button-group". */
 /* This new approach gives the container the border and removes it from the inner buttons,
@@ -176,6 +193,44 @@ fieldset#settings_menu_checkbox_group.button-group {
     background-color: #374151 !important; /* Dark grey for dark theme */
     color: #9ca3af !important;            /* Muted grey for text */
     border-color: #4b5563 !important;     /* Slightly lighter border */
+}
+
+/* --- NEW: Standardized Button Styles (T05) --- */
+/* Muted Blue for Image Buttons */
+.muted-blue-button {
+    background-color: #2563eb !important; /* Tailwind blue-600 */
+    color: white !important;
+}
+.muted-blue-button:hover {
+    background-color: #1d4ed8 !important; /* Tailwind blue-700 */
+}
+
+/* Primary Button (Orange) */
+.primary-button {
+    background-color: #f97316 !important; /* Tailwind orange-500 */
+    color: white !important;
+}
+.primary-button:hover {
+    background-color: #ea580c !important; /* Tailwind orange-600 */
+}
+
+/* Secondary Button (Dark Gray/Outline) */
+.secondary-button {
+    background-color: #374151 !important; /* Tailwind gray-700 */
+    color: #d1d5db !important; /* Tailwind gray-300 */
+    border: 1px solid #4b5563 !important; /* Tailwind gray-600 */
+}
+.secondary-button:hover {
+    background-color: #4b5563 !important; /* Tailwind gray-600 */
+}
+
+/* Destructive Button (Red) */
+.destructive-button {
+    background-color: #ef4444 !important; /* Tailwind red-500 */
+    color: white !important;
+}
+.destructive-button:hover {
+    background-color: #dc2626 !important; /* Tailwind red-600 */
 }
 
 /* --- NEW, MORE ROBUST FIX for fullscreen images --- */

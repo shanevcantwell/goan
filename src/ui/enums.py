@@ -26,7 +26,11 @@ class ComponentKey(StrEnum):
     PROCESS_QUEUE_BUTTON = auto()
     PROGRESS_ROW = auto()
     CREATE_PREVIEW_BUTTON = auto()
+
+    # alpha 0.3 functionality
     # CANCEL_EDIT_TASK_BUTTON = auto()
+    # RESUME_FAILED_BUTTON = auto()  
+    
     POSITIVE_PROMPT = auto()
     NEGATIVE_PROMPT = auto()
     VIDEO_LENGTH_SLIDER = auto()
@@ -60,11 +64,13 @@ class ComponentKey(StrEnum):
     LAST_FINISHED_VIDEO = auto()
     FULL_WIDTH_LAYOUT_ROW = auto()
     LAST_FINISHED_VIDEO_FULL_WIDTH = auto()
+    MANUAL_PREVIEW_IMAGE = auto()
 
     # --- Accordions & Advanced Settings ---
     PREVIEW_FREQUENCY_SLIDER = auto()
     PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX = auto()
     FPS_SLIDER = auto()
+    CALCULATED_SEGMENTS_HTML = auto()
 
     # --- Settings Panels ---
     SETTINGS_MENU_CHECKBOX_GROUP = auto()

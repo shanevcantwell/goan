@@ -1,0 +1,104 @@
+{
+  "refactor_plan": [
+    {
+      "task_id": "T01",
+      "title": "Relocate Calculated Segments Info Text",
+      "description": "Move 'Calculated: X Segments...' text from VIDEO_LENGTH_SLIDER info to a new HTML component.",
+      "status": "completed",
+      "changes": [
+        {
+          "file": "ui/enums.py",
+          "action": "add_enum_member",
+          "details": "Add 'CALCULATED_SEGMENTS_HTML = \"calculated_segments_html\"' to ComponentKey StrEnum."
+        },
+        {
+          "file": "ui/layout.py",
+          "action": "add_component",
+          "details": "Add 'gr.HTML(elem_id=ComponentKey.CALCULATED_SEGMENTS_HTML.value, value=\"\", visible=False)' in a new gr.Row above PREVIEW_FREQUENCY_SLIDER."
+        },
+        {
+          "file": "ui/layout.py",
+          "action": "modify_component",
+          "details": "Modify VIDEO_LENGTH_SLIDER: set 'label=\"Video Length (s)\"', remove 'info' argument."
+        },
+        {
+          "file": "ui/switchboard_creative_controls.py",
+          "action": "modify_output_target",
+          "details": "Change the output target for the segment calculation event chain (likely from `helpers.ui_update_total_segments`) to `ComponentKey.CALCULATED_SEGMENTS_HTML` instead of `ComponentKey.VIDEO_LENGTH_SLIDER`."
+        },
+        {
+          "file": "src/helpers.py",
+          "action": "modify_function_return",
+          "details": "Modify `ui_update_total_segments` to return a dictionary targeting `ComponentKey.CALCULATED_SEGMENTS_HTML` with the formatted HTML string for its 'value'."
+        }
+      ]
+    },
+    {
+      "task_id": "T02",
+      "title": "Flatten Input Component Styles in Top Panel",
+      "description": "Apply a new CSS class to remove borders, backgrounds, and shadows from specific input components.",
+      "status": "completed",
+      "changes": [
+        {
+          "file": "ui/css_main.py",
+          "action": "add_css_class",
+          "details": "Add a new CSS class '.flat-input { background-color: transparent !important; border: none !important; box-shadow: none !important; }'."
+        },
+        {
+          "file": "ui/layout.py",
+          "action": "apply_css_class",
+          "details": "Add 'elem_classes=\"flat-input\"' to PROMPT, NEGATIVE_PROMPT, MANUAL_PREVIEW_IMAGE, and PREVIEW_SEGMENTS_TEXTBOX components."
+        }
+      ]
+    },
+    {
+      "task_id": "T03",
+      "title": "Style Queue Dataframe for Theme Consistency",
+      "description": "Apply custom CSS to the QUEUE_DF to match the dark theme.",
+      "status": "completed",
+      "changes": [
+        {
+          "file": "ui/css_main.py",
+          "action": "add_css_rules",
+          "details": "Add CSS rules targeting the QUEUE_DF's `elem_id` (e.g., '#queue_df_id table, #queue_df_id th, #queue_df_id td') to set `border-bottom: 1px solid #374151;`, vertically center cell content, style the header row, and style scrollbars."
+        },
+        {
+          "file": "ui/layout.py",
+          "action": "add_elem_id",
+          "details": "Add `elem_id=\"queue_df_id\"` to the QUEUE_DF component if it doesn't already have one, to allow for targeted CSS."
+        }
+      ]
+    },
+    {
+      "task_id": "T04",
+      "title": "Fix Progress Bar HTML Rendering",
+      "description": "Ensure PROGRESS_BAR_HTML renders correctly by yielding `gr.update` objects.",
+      "status": "completed",
+      "changes": [
+        {
+          "file": "src/queue_processing.py",
+          "action": "modify_yield_statement",
+          "details": "Locate the part of the generator function that yields updates for PROGRESS_BAR_HTML. Change the yield statement to `yield {ComponentKey.PROGRESS_BAR_HTML: gr.update(value=html_string)}` where `html_string` is the raw HTML content."
+        }
+      ]
+    },
+    {
+      "task_id": "T05",
+      "title": "Standardize and Refine Button Styles",
+      "description": "Apply consistent styling to various buttons across the UI.",
+      "status": "completed",
+      "changes": [
+        {
+          "file": "ui/css_main.py",
+          "action": "add_css_classes",
+          "details": "Add CSS classes: '.muted-blue-button' for image buttons, '.primary-button' (orange), '.secondary-button' (dark gray/outline), and '.destructive-button' (red)."
+        },
+        {
+          "file": "ui/layout.py",
+          "action": "apply_css_classes",
+          "details": "Apply '.muted-blue-button' to REPLACE_IMAGE_BUTTON and DOWNLOAD_IMAGE_BUTTON. Apply primary, secondary, or destructive classes to ADD_TO_QUEUE_BUTTON, PROCESS_QUEUE_BUTTON, SAVE_QUEUE_BUTTON, LOAD_QUEUE_BUTTON, and STOP_PROCESSING_BUTTON based on their intended action/hierarchy."
+        }
+      ]
+    }
+  ]
+}

@@ -44,7 +44,7 @@ def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
         update_text = "Segments: Invalid input"
-    return {K.VIDEO_LENGTH_SLIDER: gr.update(info=update_text)}
+    return {K.CALCULATED_SEGMENTS_HTML: gr.update(value=update_text, visible=True)}
 
 def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_value: float) -> dict:
     """

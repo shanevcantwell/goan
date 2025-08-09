@@ -82,7 +82,7 @@ def process_task_queue_and_listen(*lora_control_values):
                     gr.update(),  # QUEUE_DF
                     gr.update(),  # LAST_FINISHED_VIDEO
                     gr.update(value=preview_np),  # CURRENT_TASK_PREVIEW_IMAGE
-                    gr.update(value=desc), html, gr.update(), preview_button_update, gr.update()
+                    gr.update(value=desc), gr.update(value=html), gr.update(), preview_button_update, gr.update()
                 )
             elif flag == "file":
                 # Unpack data: task_id, new_video_path, _

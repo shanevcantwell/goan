@@ -47,45 +47,38 @@ def create_ui():
             with gr.Row():
                 with gr.Column(scale=1):
                     components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
-                    components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False, elem_id="input_image_display_ui")
+                    components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False, elem_id="input_image_display_ui", elem_classes="flat-input")
                     # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
-                    components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1)
-                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Recipe", interactive=False, elem_id="download_image_button", scale=1) # I just can't think of a way to express the concept in 4ish words
-                    components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(
-                        label="Length (s)",
-                        minimum=0.1, maximum=120, value=5.0, step=0.1,
-                        container=False,
-                        info="Calculated: Not yet calculated"
-                    )
+                    components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1, elem_classes="muted-blue-button")
+                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Recipe", interactive=False, elem_id="download_image_button", scale=1, elem_classes="muted-blue-button") # I just can't think of a way to express the concept in 4ish words
                 with gr.Column(scale=2, min_width=600):
-                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=9, max_lines=9, elem_id="positive_prompt", elem_classes="flat-input")
-                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=3, max_lines=3, elem_id="negative_prompt", elem_classes="flat-input")
+                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=8, max_lines=8, elem_id="positive_prompt", elem_classes="flat-input")
+                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=2, max_lines=2, elem_id="negative_prompt", elem_classes="flat-input")
 
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
             components[K.QUEUE_DOWNLOADER] = gr.File(visible=False, elem_id="queue_downloader_hidden_file")
 
-        with gr.Column():
-            with gr.Row(equal_height=True):                
-                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", variant="secondary", interactive=False)
-                with gr.Column(scale=1):
-                    components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
-                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
-                with gr.Column(scale=1):
-                    gr.Markdown("")
-            with gr.Row(equal_height=True):                        
-                gr.Markdown('')
-                components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
-                components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
+            # Move this to inside the PREVIEW selection elements
+            components[K.CALCULATED_SEGMENTS_HTML] = gr.HTML(elem_id=K.CALCULATED_SEGMENTS_HTML.value, value="", visible=False)
+
+        with gr.Row(equal_height=True):
+            components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(
+                label="Video Length (s)",
+                minimum=0.1, maximum=120, value=5.0, step=0.1,
+                container=False,
+            )
+            components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
+            components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
+        with gr.Row(equal_height=True):
+            components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
+            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
+            components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
+        with gr.Row(equal_height=True):  
             components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
-            with gr.Row():
-                with gr.Column(scale=1):
-                    gr.Markdown('')
-                with gr.Column(scale=2):
-                    with gr.Row(visible=False):
-                        components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
-                        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+            components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
+            components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
                 
         components[K.QUEUE_DF] = gr.DataFrame(
             headers=["Status", "Prompt", "Image", "Length (s)", "ID"],
@@ -184,6 +177,7 @@ def create_ui():
             with gr.Column(scale=2):
                 components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(visible=False, autoplay=False, height=540)
+                components[K.MANUAL_PREVIEW_IMAGE] = gr.Image(label="Manual Preview", interactive=False, visible=False, height=220, show_download_button=False, elem_id="manual_preview_image_ui", elem_classes="flat-input")
 
 
         # Full width video
