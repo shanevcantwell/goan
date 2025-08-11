@@ -45,12 +45,13 @@ def create_ui():
 
         with gr.Group(elem_classes="top-section-container"):
             with gr.Row():
-                with gr.Column(scale=1):
+                with gr.Column(scale=1, min_width=300):
                     components[K.IMAGE_FILE_INPUT] = gr.File(label="Drop Final Image for I2V", file_types=["image"], elem_id="image_file_input_ui")
                     components[K.INPUT_IMAGE_DISPLAY] = gr.Image(type="pil", label="Current Input Image", interactive=False, visible=False, height=220, show_download_button=False, elem_id="input_image_display_ui", elem_classes="flat-input")
                     # components[K.CANCEL_EDIT_TASK_BUTTON] = gr.Button("Cancel Edit", visible=False, variant="secondary", size="sm")
                     components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1, elem_classes="muted-blue-button")
-                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Recipe", interactive=False, elem_id="download_image_button", scale=1, elem_classes="muted-blue-button") # I just can't think of a way to express the concept in 4ish words
+                    components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Metadata", interactive=False, elem_id="download_image_button", scale=1, elem_classes="muted-blue-button")
+                    components[K.SEED] = gr.Number(label="Seed", value=-1, precision=0, minimum=-1, maximum=2**32 - 1)                    
                 with gr.Column(scale=2, min_width=600):
                     components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=7, max_lines=7, elem_id="positive_prompt", elem_classes="flat-input")
                     components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=2, elem_id="negative_prompt", elem_classes="flat-input")
@@ -91,20 +92,9 @@ def create_ui():
             interactive=False # The grid itself is not interactive; actions are driven by .select()
         )
         with gr.Row(elem_classes="button-group"):
-            components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", size="sm", interactive=False)
-            components[K.LOAD_QUEUE_BUTTON] = gr.UploadButton("Load Queue", file_types=[".zip"], size="sm", variant="primary")
-            components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", size="sm", variant="stop", interactive=False)
-
-        with gr.Row(visible=False):
-            components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
-                label=None,
-                interactive=False,
-                visible=True, # Starts hidden, made visible by the agent during processing.
-                show_download_button=False,
-                elem_id="current_task_preview_image_ui",
-                elem_classes="flat-input",
-                height=23
-            )
+            components[K.SAVE_QUEUE_BUTTON] = gr.Button("Save Queue", interactive=False)
+            components[K.LOAD_QUEUE_BUTTON] = gr.UploadButton("Load Queue", file_types=[".zip"], variant="primary")
+            components[K.CLEAR_QUEUE_BUTTON] = gr.Button("Clear Pending", variant="stop", interactive=False)
 
         # Settings menus
         with gr.Row(equal_height=True):
@@ -120,9 +110,8 @@ def create_ui():
                 )
                 with gr.Group(visible=False, elem_classes="compact-group") as power_user_group:
                     components[K.POWER_USER_GROUP] = power_user_group
-                    with gr.Row():
-                        with gr.Column(scale=2):
-                            components[K.SEED] = gr.Number(label="Seed", value=-1, precision=0, minimum=-1, maximum=2**32 - 1)
+                    # with gr.Row():
+                    #     with gr.Column(scale=2):
                         # with gr.Column(scale=1):
                         #     with gr.Row():
                         #         components[K.RANDOM_SEED_BUTTON] = gr.Button("🎲", elem_classes=["icon-button"], scale=1)
@@ -170,6 +159,9 @@ def create_ui():
                         components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1, container=False)
                     with gr.Row(elem_classes="compact-row"):
                         components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1, container=False)
+                    
+                    # Experimenting to find a good look for 6fps video to run through VFI
+                    # components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=True, container=False) # FramePack Magic Number to be explored in alpha 0.3
                     components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=True, container=False) # FramePack Magic Number to be explored in alpha 0.3
                     components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(
                         label="Output Folder",
@@ -195,5 +187,18 @@ def create_ui():
                 # height=540,
                 label="Video Preview"
             )
+            
+        with gr.Row():
+            components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
+                label=None,
+                interactive=False,
+                visible=False, # Starts hidden, made visible by the agent during processing.
+                show_download_button=False,
+                elem_id="current_task_preview_image_ui",
+                elem_classes="flat-input",
+                # height=23
+            )
+            
+
 
     return components

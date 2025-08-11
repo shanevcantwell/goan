@@ -100,7 +100,7 @@ fieldset#settings_menu_checkbox_group.button-group {
 /* --- Task Queue Column Styling (T03) --- */
 /* Use a fixed table layout to enforce column widths accurately. */
 #queue_df table {
-    table-layout: fixed;
+    /* Removed table-layout: fixed; to allow columns to size based on content */
     width: 100%;
     border-collapse: collapse; /* Ensures borders are clean */
 }
@@ -147,24 +147,23 @@ fieldset#settings_menu_checkbox_group.button-group {
     user-select: none; -webkit-user-select: none; -moz-user-select: none;
 }
 
-/* Status Column (1): Fixed width, left-aligned, allows wrapping. */
+/* Status Column (1): Shrink to content, left-aligned, allows wrapping. */
 #queue_df th:nth-child(1), #queue_df td:nth-child(1) {
-    width: 8rem; /* Wide enough for "⏳ Processing" */
+    min-width: 8rem; /* Ensure enough space for status messages like "Processing" */
     text-align: left;
     white-space: normal; /* Allow text to wrap */
 }
 
-/* Prompt Column (2): Flexible width, left-aligned. */
+/* Prompt Column (2): Takes up remaining space, left-aligned. */
 #queue_df th:nth-child(2), #queue_df td:nth-child(2) {
     text-align: left;
-    width: 40%; /* Adjust the width as needed */
-    min-width: 10rem; /* Minimum width */
+    width: 100%; /* Take up all available space */
 }
 
-/* Image (3), Length (4), ID (5) Columns: Fixed width, centered. */
-#queue_df th:nth-child(3), #queue_df td:nth-child(3) { width: 4rem; text-align: center; }
-#queue_df th:nth-child(4), #queue_df td:nth-child(4) { width: 4rem; text-align: center; }
-#queue_df th:nth-child(5), #queue_df td:nth-child(5) { width: 3rem; text-align: center; }
+/* Image (3), Length (4), ID (5) Columns: Shrink to content, centered. */
+#queue_df th:nth-child(3), #queue_df td:nth-child(3) { width: auto; text-align: center; }
+#queue_df th:nth-child(4), #queue_df td:nth-child(4) { width: auto; text-align: center; }
+#queue_df th:nth-child(5), #queue_df td:nth-child(5) { width: auto; text-align: center; }
 
 .gradio-container { max-width: 95% !important; margin: auto !important; }
 :root {
@@ -256,12 +255,13 @@ div.fixed img {
     object-fit: contain !important; /* This preserves the aspect ratio */
 }
 
-#current_task_preview_image_ui div.fixed img {
+current_task_preview_image_ui div.fixed img {
     max-width: 95vw !important;
     max-height: 50vh !important;
     object-fit: contain !important;
 }
-    /* Makes the column a flex container that can stretch vertically */
+
+/* Makes the column a flex container that can stretch vertically */
 .fill-height-column {
     height: 100%;
     display: flex;

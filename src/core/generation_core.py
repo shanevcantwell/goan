@@ -197,7 +197,7 @@ def worker(
             # This check for the main interrupt flag makes the Stop button more responsive,
             # allowing it to halt processing between segments.
             if shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                logger.info(f"Task {task_id}: Stop signal detected. Breaking generation loop.")
+                logger.info(f"Task {task_id}: Stop signal detected at start of segment loop. Breaking generation loop.")
                 break
             is_last_section = latent_padding == 0
             latent_padding_size = latent_padding * latent_window_size
@@ -231,7 +231,9 @@ def worker(
             transformer.initialize_teacache(enable_teacache=use_teacache, num_steps=steps)
 
             def callback_diffusion_step(d):
+                logger.debug(f"Task {task_id}: Callback diffusion step {d['i'] + 1}/{steps}. Interrupt flag: {shared_state_module.shared_state_instance.interrupt_flag.is_set()}")
                 if shared_state_module.shared_state_instance.interrupt_flag.is_set():
+                    logger.info(f"Task {task_id}: InterruptedError raised in callback_diffusion_step.")
                     raise InterruptedError("Stop signal received during sampling.")
                 current_diffusion_step = d["i"] + 1
                 preview_latent = d["denoised"]
@@ -286,6 +288,7 @@ def worker(
                         curved_progress = roll_off_progress ** roll_off_factor
                         current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end_value_for_schedule - initial_gs_from_ui) * curved_progress
 
+            logger.info(f"Task {task_id}: Starting sample_hunyuan for segment {current_loop_segment_number}.")
             generated_latents = sample_hunyuan(
                 transformer=transformer,
                 sampler="unipc",
@@ -323,6 +326,7 @@ def worker(
                 clean_latent_4x_indices=clean_latent_4x_indices.to(transformer.device),
                 callback=callback_diffusion_step,
             )
+            logger.info(f"Task {task_id}: Finished sample_hunyuan for segment {current_loop_segment_number}.")
 
             if is_last_section:
                 generated_latents = torch.cat(
@@ -408,13 +412,14 @@ def worker(
         success = True
 
     except (InterruptedError, KeyboardInterrupt) as e:
+        logger.info(f"Task {task_id}: Caught InterruptedError or KeyboardInterrupt.")
         if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-            logger.info(f"Worker task {task_id} caught stop signal: {e}")
+            logger.info(f"Worker task {task_id} caught stop signal: {e}. stop_requested_flag was set.")
             output_queue_ref.push(('aborted', None))
             success = False
             is_paused = False
         else:
-            logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
+            logger.info(f"Worker task {task_id} caught explicit pause signal: {e}. pause_request_flag was set.")
             # Send the latent state for pause/resume
             output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_abort, graceful_abort_preview_path)))
             success = False
