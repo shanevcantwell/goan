@@ -11,7 +11,7 @@ from .agents import ProcessingAgent, ui_update_queue
 
 logger = logging.getLogger(__name__)
 
-def process_task_queue_and_listen(*lora_control_values):
+def process_task_queue_and_listen(app_state: dict, *lora_control_values):
     """Starts the ProcessingAgent, listens for UI updates, and handles stop requests."""
     agent = ProcessingAgent()
 
@@ -87,7 +87,8 @@ def process_task_queue_and_listen(*lora_control_values):
             elif flag == "file":
                 # Unpack data: task_id, new_video_path, _
                 _, new_video_path, _ = data  # type: ignore
-                yield (gr.update(), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
+                app_state["last_completed_video_path"] = new_video_path
+                yield (gr.update(value=app_state), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
             elif flag == "task_starting":
                 task = data  # type: ignore
                 # This yield was missing the explicit `visible=True` for the progress bar.
@@ -115,9 +116,11 @@ def process_task_queue_and_listen(*lora_control_values):
                 # If a final path was provided, update the video player one last time.
                 # Otherwise, send a no-op update to preserve its current state.
                 video_update = gr.update(value=final_path) if final_path else gr.update()
+                if final_path:
+                    app_state["last_completed_video_path"] = final_path
 
                 yield (
-                    gr.update(),
+                    gr.update(value=app_state),
                     queue_helpers.update_queue_df_display(),
                     video_update,
                     gr.update(),

@@ -83,7 +83,7 @@ def wire_events(components: dict):
         outputs=[components[K.PROCESS_QUEUE_BUTTON]]
     ).then(
         fn=queue_processing.process_task_queue_and_listen,
-        inputs=lora_ui_controls,
+        inputs=[components[K.APP_STATE]] + lora_ui_controls, # Add APP_STATE to inputs
         outputs=process_q_outputs
     ))
 

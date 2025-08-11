@@ -68,18 +68,18 @@ def create_ui():
                     minimum=0.1, maximum=120, value=5.0, step=0.1
                 )
             with gr.Column(scale=2):
-                with gr.Row(equal_height=True):  #, elem_classes="compact-row"):
+                with gr.Row(equal_height=True, elem_classes="compact-row"):
                     components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
-                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
-        with gr.Row():  #equal_height=True):  #, elem_classes="compact-row"):
-            # with gr.Column(scale=1):
-            components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
-            # with gr.Column(scale=2):
-                # with gr.Row():  #equal_height=True):  #, elem_classes="compact-row"):
+                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 3,5,10)", value="", scale=1, elem_classes="flat-input")
+        with gr.Row(equal_height=True, elem_classes="compact-row"):
+            with gr.Column(scale=1):
+                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
+            with gr.Column(scale=2):
+                components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
+        with gr.Row(equal_height=True):          
             components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=True)
             components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui", visible=True)
         with gr.Row(equal_height=True):  
-            components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
             components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui", visible=False)
             components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui", visible=False)
                 
