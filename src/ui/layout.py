@@ -60,29 +60,28 @@ def create_ui():
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
             components[K.QUEUE_DOWNLOADER] = gr.File(visible=False, elem_id="queue_downloader_hidden_file")
 
-            # Move this to inside the PREVIEW selection elements
-            components[K.CALCULATED_SEGMENTS_HTML] = gr.HTML(elem_id=K.CALCULATED_SEGMENTS_HTML.value, value="", visible=False)
-
+        with gr.Row(equal_height=True, elem_classes="compact-row"):
+            with gr.Column(scale=1):
+                components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(
+                    label="Video Length (s)",
+                    show_label=True,
+                    minimum=0.1, maximum=120, value=5.0, step=0.1
+                )
+                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
+            
         with gr.Row(equal_height=True):
-            components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(
-                label="Video Length (s)",
-                minimum=0.1, maximum=120, value=5.0, step=0.1,
-                container=False,
-            )
             components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
             components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
-        with gr.Row(equal_height=True):
-            components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
-            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui")
-            components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui")
+            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=False)
+            components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui", visible=False)
         with gr.Row(equal_height=True):  
             components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
-            components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui")
-            components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui")
+            components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui", visible=False)
+            components[K.CURRENT_TASK_PROGRESS_DESCRIPTION] = gr.Markdown('', elem_id="current_task_progress_description_ui", visible=False)
                 
         components[K.QUEUE_DF] = gr.DataFrame(
             headers=["Status", "Prompt", "Image", "Length (s)", "ID"],
-            datatype=["markdown", "markdown", "markdown", "number", "number"],
+            datatype=["markdown", "html", "markdown", "number", "number"],
             elem_id="queue_df",
             max_height=350,
             interactive=False # The grid itself is not interactive; actions are driven by .select()
@@ -115,7 +114,7 @@ def create_ui():
                     type="value",
                     interactive=True,
                 )
-                with gr.Group(visible=False) as power_user_group:
+                with gr.Group(visible=False, elem_classes="compact-group") as power_user_group:
                     components[K.POWER_USER_GROUP] = power_user_group
                     with gr.Row():
                         with gr.Column(scale=2):
@@ -125,16 +124,17 @@ def create_ui():
                         #         components[K.RANDOM_SEED_BUTTON] = gr.Button("🎲", elem_classes=["icon-button"], scale=1)
                         #         components[K.REUSE_SEED_BUTTON] = gr.Button("♻️", elem_classes=["icon-button"], scale=1) #
                     components[K.VARIABLE_CFG_SHAPE_RADIO] = gr.Radio(["Off", "Linear", "Roll-off"], label="Variable CFG", value="Off")
-                    with gr.Row():
+                    with gr.Row(elem_classes="compact-row"):
                         components[K.DISTILLED_CFG_START_SLIDER] = gr.Slider(label="Distilled CFG Start", minimum=1.0, maximum=32.0, value=10.0, step=0.01, container=False)
                         components[K.DISTILLED_CFG_END_SLIDER] = gr.Slider(label="Distilled CFG End", minimum=1.0, maximum=32.0, value=10.0, step=0.01, interactive=False, visible=False, container=False)
-                    with gr.Row():
+                    with gr.Row(elem_classes="compact-row"):
                         components[K.ROLL_OFF_START_SLIDER] = gr.Slider(label="Roll-off Start %", minimum=0, maximum=100, value=75, step=1, visible=False, container=False)
                         components[K.ROLL_OFF_FACTOR_SLIDER] = gr.Slider(label="Roll-off Curve Factor", minimum=0.25, maximum=4.0, value=1.0, step=0.05, visible=False, container=False)
-                    with gr.Row():
+                    with gr.Row(elem_classes="compact-row"):
                         components[K.REAL_CFG_SLIDER] = gr.Slider(label="CFG (Real)", minimum=1.0, maximum=8.0, value=1.5, step=0.01, container=False)
                         components[K.STEPS_SLIDER] = gr.Slider(label="Steps", minimum=1, maximum=100, value=25, step=1, container=False)
-                    components[K.GUIDANCE_RESCALE_SLIDER] = gr.Slider(label="RS", minimum=0.0, maximum=32.0, value=0.0, step=0.01, visible=False, container=False)
+                    with gr.Row(elem_classes="compact-row"):
+                        components[K.GUIDANCE_RESCALE_SLIDER] = gr.Slider(label="RS", minimum=0.0, maximum=32.0, value=0.0, step=0.01, visible=False, container=False)
 
                 with gr.Group(visible=False) as lora_group:
                     components[K.LORA_GROUP] = lora_group
@@ -161,9 +161,11 @@ def create_ui():
                         visible=not is_legacy_gpu,
                         info="Forces the final output of the transformer to full precision. May improve quality at the cost of performance. Does not affect the VAE."
                     )
-                    components[K.GPU_MEMORY_PRESERVATION_SLIDER] = gr.Slider(label="GPU Preserve (GB)", minimum=4, maximum=128, value=6.0, step=0.1, container=False)
-                    components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1, container=False)
-                    components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1, container=False)
+                    with gr.Row(elem_classes="compact-row"):
+                        components[K.GPU_MEMORY_PRESERVATION_SLIDER] = gr.Slider(label="GPU Preserve (GB)", minimum=4, maximum=128, value=6.0, step=0.1, container=False)
+                        components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1, container=False)
+                    with gr.Row(elem_classes="compact-row"):
+                        components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1, container=False)
                     components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=False, container=False) # Never change - FramePack Magic Number
                     components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(
                         label="Output Folder",

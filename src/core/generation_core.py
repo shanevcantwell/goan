@@ -231,6 +231,8 @@ def worker(
             transformer.initialize_teacache(enable_teacache=use_teacache, num_steps=steps)
 
             def callback_diffusion_step(d):
+                if shared_state_module.shared_state_instance.interrupt_flag.is_set():
+                    raise InterruptedError("Stop signal received during sampling.")
                 current_diffusion_step = d["i"] + 1
                 preview_latent = d["denoised"]
                 preview_img_np = vae_decode_fake(preview_latent)
@@ -406,12 +408,18 @@ def worker(
         success = True
 
     except (InterruptedError, KeyboardInterrupt) as e:
-        logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
-        # Send the latent state for pause/resume
-        output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_pause, graceful_pause_preview_path)))
-        success = False
-        is_paused = True
-        final_output_filename = graceful_pause_preview_path
+        if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+            logger.info(f"Worker task {task_id} caught stop signal: {e}")
+            output_queue_ref.push(('aborted', None))
+            success = False
+            is_paused = False
+        else:
+            logger.info(f"Worker task {task_id} caught explicit pause signal: {e}")
+            # Send the latent state for pause/resume
+            output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_abort, graceful_abort_preview_path)))
+            success = False
+            is_paused = True
+            final_output_filename = graceful_abort_preview_path
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
         output_queue_ref.push(('error', (task_id, str(e))))

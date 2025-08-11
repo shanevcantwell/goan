@@ -28,7 +28,7 @@ def _merge_gradio_updates(*update_dicts: dict) -> gr.update:
     return gr.update(**combined_attrs)
 
 def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
-    """Calculates the number of segments and returns a dictionary update for the video length slider's info property."""
+    """Calculates the number of segments and returns a dictionary update for the video length slider's label property."""
     total_seconds_ui = _get_value_from_input(total_seconds_ui)
     fps_ui = _get_value_from_input(fps_ui)
 
@@ -44,7 +44,7 @@ def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
         update_text = "Segments: Invalid input"
-    return {K.CALCULATED_SEGMENTS_HTML: gr.update(value=update_text, visible=True)}
+    return {K.VIDEO_LENGTH_SLIDER: gr.update(label=update_text)}
 
 def update_variable_cfg_controls_visibility(cfg_shape_value: str, cfg_start_value: float) -> dict:
     """

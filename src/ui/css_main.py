@@ -34,23 +34,34 @@ MAIN_CSS = """
     border: none !important;
 }
 
-
-/* --- NEW: Utility Class for Flat Inputs (T02) --- */
-/* Removes default styling from textboxes and other inputs for a seamless look. */
-.flat-input {
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-/* Target the inner textarea element specifically, as it often has its own border. */
-.flat-input textarea {
-    background-color: transparent !important;
-}
-/* Target the image component's inner wrapper to remove its border. */
-.flat-input > div[data-testid="image"] {
-    border: none !important;
+/* NEW: Compact Row for Sliders and HTML */
+.compact-row > * {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
+.compact-row .gr-html {
+    min-height: unset !important; /* Remove any minimum height */
+    line-height: 1.2em !important; /* Adjust line height for text */
+}
+
+.compact-row .gradio-slider {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* NEW: Compact Group for Power User Menu */
+.compact-group {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.compact-group > * {
+    padding: 0 !important;
+    margin: 0 !important;
+}
 
 /* --- Connected Button Group Styling --- */
 /* Creates a visually connected group of buttons in a row. Applied via elem_classes="button-group". */

@@ -53,8 +53,8 @@ def wire_events(components: dict):
         components[K.VIDEO_LENGTH_SLIDER],
         components[K.FPS_SLIDER]
     ]
-    # The output is now the slider itself, to update its 'info' property.
-    segment_calc_output_keys = [K.CALCULATED_SEGMENTS_HTML]
+    # The output is now the slider itself, to update its 'label' property.
+    segment_calc_output_keys = [K.VIDEO_LENGTH_SLIDER]
     segment_calc_output_components = [components[k] for k in segment_calc_output_keys]
 
     for component in segment_calc_inputs:
