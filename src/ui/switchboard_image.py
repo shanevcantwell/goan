@@ -108,7 +108,8 @@ def wire_events(components: dict):
         fn=event_handlers.handle_confirm_metadata,
         inputs=[
             components[K.EXTRACTED_METADATA_STATE],
-            components[K.VIDEO_LENGTH_SLIDER], components[K.FPS_SLIDER]
+            components[K.VIDEO_LENGTH_SLIDER], components[K.FPS_SLIDER],
+            components[K.LATENT_WINDOW_SIZE_SLIDER]
         ],
         outputs=[components[K.HANDLER_OUTPUT_STATE]]
     ).then(

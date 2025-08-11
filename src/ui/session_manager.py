@@ -139,7 +139,7 @@ def load_and_apply_workspace_on_start() -> dict:
     # The settings_values_map uses ComponentKey enums as keys.
     video_duration = settings_values_map.get(K.VIDEO_LENGTH_SLIDER, 5.0)
     fps = settings_values_map.get(K.FPS_SLIDER, 30)
-    segments_update_dict = event_handler_helpers.ui_update_total_segments(video_duration, fps) # This now returns an update for K.VIDEO_LENGTH_SLIDER
+    segments_update_dict = event_handler_helpers.ui_update_total_segments(video_duration, fps, event_handler_helpers.LATENT_WINDOW_SIZE) # This now returns an update for K.VIDEO_LENGTH_SLIDER
 
     # Manually merge the updates for the video length slider to preserve both the 'value'
     # loaded from settings and the 'info' text calculated from the segments.

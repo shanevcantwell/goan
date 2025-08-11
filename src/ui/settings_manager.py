@@ -46,7 +46,7 @@ class SettingsManager:
             K.GPU_MEMORY_PRESERVATION_SLIDER: 6.0,
             K.MP4_CRF_SLIDER: 18,
             K.OUTPUT_FOLDER_TEXTBOX: self.outputs_folder,
-            K.LATENT_WINDOW_SIZE_SLIDER: 9,
+            K.LATENT_WINDOW_SIZE_SLIDER: 9,  # Framepack tuned to 30fps - experiment in alpha 0.3+
 
             K.SETTINGS_MENU_CHECKBOX_GROUP: None,
         }

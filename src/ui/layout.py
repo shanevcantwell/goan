@@ -15,7 +15,7 @@ def create_ui():
     """
 
     components = {}
-    components[K.BLOCK] = gr.Blocks(css=APP_CSS, title="goan").queue()
+    components[K.BLOCK] = gr.Blocks(css=APP_CSS, title="goan alpha 0.1").queue()
 
     with components[K.BLOCK]:
         # components[K.LAST_COMPLETED_SEED_STATE] = gr.State(-1)
@@ -52,28 +52,32 @@ def create_ui():
                     components[K.CLEAR_IMAGE_BUTTON] = gr.Button("Replace Image", interactive=False, elem_id="clear_image_button", scale=1, elem_classes="muted-blue-button")
                     components[K.DOWNLOAD_IMAGE_BUTTON] = gr.Button("Download Image with Recipe", interactive=False, elem_id="download_image_button", scale=1, elem_classes="muted-blue-button") # I just can't think of a way to express the concept in 4ish words
                 with gr.Column(scale=2, min_width=600):
-                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=8, max_lines=8, elem_id="positive_prompt", elem_classes="flat-input")
-                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=2, max_lines=2, elem_id="negative_prompt", elem_classes="flat-input")
+                    components[K.POSITIVE_PROMPT] = gr.Textbox(label="Prompt", lines=7, max_lines=7, elem_id="positive_prompt", elem_classes="flat-input")
+                    components[K.NEGATIVE_PROMPT] = gr.Textbox(label="Negative Prompt", lines=2, elem_id="negative_prompt", elem_classes="flat-input")
 
         with gr.Group():
             # These hidden file components are the targets for one-click downloads.
             components[K.IMAGE_DOWNLOADER] = gr.File(visible=False, elem_id="image_downloader_hidden_file")
             components[K.QUEUE_DOWNLOADER] = gr.File(visible=False, elem_id="queue_downloader_hidden_file")
 
-        with gr.Row(equal_height=True, elem_classes="compact-row"):
+        with gr.Row(equal_height=True):  #, elem_classes="compact-row"):
             with gr.Column(scale=1):
                 components[K.VIDEO_LENGTH_SLIDER] = gr.Slider(
                     label="Video Length (s)",
                     show_label=True,
                     minimum=0.1, maximum=120, value=5.0, step=0.1
                 )
-                components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
-            
-        with gr.Row(equal_height=True):
-            components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
-            components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
-            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=False)
-            components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui", visible=False)
+            with gr.Column(scale=2):
+                with gr.Row(equal_height=True):  #, elem_classes="compact-row"):
+                    components[K.PREVIEW_FREQUENCY_SLIDER] = gr.Slider(label="Preview Interval", minimum=0, maximum=100, value=5, step=1, container=False)
+                    components[K.PREVIEW_SPECIFIED_SEGMENTS_TEXTBOX] = gr.Textbox(label="Preview Segments (eg: 1,5,10)", value="", scale=1, elem_classes="flat-input")
+        with gr.Row():  #equal_height=True):  #, elem_classes="compact-row"):
+            # with gr.Column(scale=1):
+            components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
+            # with gr.Column(scale=2):
+                # with gr.Row():  #equal_height=True):  #, elem_classes="compact-row"):
+            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=True)
+            components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui", visible=True)
         with gr.Row(equal_height=True):  
             components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
             components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui", visible=False)
@@ -166,7 +170,7 @@ def create_ui():
                         components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1, container=False)
                     with gr.Row(elem_classes="compact-row"):
                         components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1, container=False)
-                    components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=False, container=False) # Never change - FramePack Magic Number
+                    components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=True, container=False) # FramePack Magic Number to be explored in alpha 0.3
                     components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(
                         label="Output Folder",
                         value=settings_manager_instance.get_initial_output_folder()

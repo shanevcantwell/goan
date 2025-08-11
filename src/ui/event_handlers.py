@@ -90,7 +90,7 @@ def handle_clear_image() -> dict:
     updates.update(button_updates)
     return updates
 
-def handle_confirm_metadata(metadata_dict, current_video_len, current_fps) -> dict:
+def handle_confirm_metadata(metadata_dict, current_video_len, current_fps, latent_window_size_ui) -> dict:
     """
     Consolidated handler for applying image metadata. It updates creative UI,
     recalculates segments, and closes the modal.
@@ -114,7 +114,7 @@ def handle_confirm_metadata(metadata_dict, current_video_len, current_fps) -> di
     #    We must manually merge the gr.update() objects for the video length slider to preserve
     #    both the 'value' from metadata and the 'info' text from the calculation.
     #    A simple dict.update() would overwrite one with the other.
-    segments_update_dict = helpers.ui_update_total_segments(new_video_len, new_fps)
+    segments_update_dict = helpers.ui_update_total_segments(new_video_len, new_fps, latent_window_size_ui)
     slider_update_from_metadata = final_updates.get(K.VIDEO_LENGTH_SLIDER, gr.update())
     slider_update_from_segments = segments_update_dict.get(K.VIDEO_LENGTH_SLIDER, gr.update())
     

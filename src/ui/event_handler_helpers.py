@@ -27,19 +27,19 @@ def _merge_gradio_updates(*update_dicts: dict) -> gr.update:
             combined_attrs.update({k: v for k, v in update_dict.items() if k != '__type__'})
     return gr.update(**combined_attrs)
 
-def ui_update_total_segments(total_seconds_ui, fps_ui) -> dict:
+def ui_update_total_segments(total_seconds_ui, fps_ui, latent_window_size_ui) -> dict:
     """Calculates the number of segments and returns a dictionary update for the video length slider's label property."""
     total_seconds_ui = _get_value_from_input(total_seconds_ui)
     fps_ui = _get_value_from_input(fps_ui)
+    latent_window_size = _get_value_from_input(latent_window_size_ui)
 
-    latent_window_size = LATENT_WINDOW_SIZE  # FramePack standard, for future experimentation
     frames_per_segment = latent_window_size * 4 - 3
 
     try:
         logger.debug(f"ui_update_total_segments received: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui} (latent_window_size={latent_window_size})")
         total_frames = int(total_seconds_ui * fps_ui)
         total_segments = int(max(round(total_frames / frames_per_segment), 1)) if frames_per_segment > 0 else 1
-        update_text = f"Calculated: {total_segments} Segments, {total_frames} Total Frames"
+        update_text = f"{total_seconds_ui}s: {total_segments} Segments, {total_frames} Total Frames"
 
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)
