@@ -73,7 +73,7 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
                 preview_requested = shared_state_module.shared_state_instance.preview_request_flag.is_set()
                 preview_button_update = gr.update(
                     interactive=not preview_requested,
-                    value="Cancel Preview Request" if preview_requested else "📸 Generate a preview for the currently processing segment",
+                    value="📸 Preview generation requested" if preview_requested else "📸 Generate a preview for the currently processing segment",
                     variant="secondary" if preview_requested else "primary"
                 )
 

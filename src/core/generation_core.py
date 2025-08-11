@@ -201,9 +201,7 @@ def worker(
                 break
             is_last_section = latent_padding == 0
             latent_padding_size = latent_padding * latent_window_size
-            # Added for consistent 1-indexed segment number for loop segments
-            current_loop_segment_number = latent_padding_iteration + 1
-            logger.info(f"Task {task_id}: Seg {current_loop_segment_number}/{total_latent_sections} (latent_window_size={latent_window_size}, lp_val={latent_padding}, last_loop_seg={is_last_section})")
+            segment_start_time = time.time() # Start timer for this segment
 
             # --- Prepare Latents for the Segment ---
             # This block is now encapsulated in a helper function for clarity.
@@ -256,6 +254,19 @@ def worker(
                     history_pixels.shape[2] if history_pixels is not None else 0
                 )
                 desc = f"Task {task_id}: Vid Frames: {current_video_frames_count}, Len: {current_video_frames_count / fps :.2f}s. Seg {current_loop_segment_number}/{total_latent_sections}. Extending..."
+
+                # Calculate segment ETA
+                elapsed_time = time.time() - segment_start_time
+                eta_seconds_segment = 0
+                if current_diffusion_step > 0:
+                    eta_seconds_segment = (steps - current_diffusion_step) * (elapsed_time / current_diffusion_step)
+                
+                eta_display = "" # Default to empty string
+                if eta_seconds_segment > 0:
+                    minutes = int(eta_seconds_segment // 60)
+                    seconds = int(eta_seconds_segment % 60)
+                    eta_display = f"ETA: {minutes}m {seconds}s"
+
                 output_queue_ref.push(
                     (
                         "progress",
@@ -264,6 +275,7 @@ def worker(
                             preview_img_np,
                             desc,
                             make_progress_bar_html(percentage, hint),
+                            eta_display # New: ETA for the current segment
                         ),
                     )
                 )

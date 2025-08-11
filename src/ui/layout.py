@@ -184,11 +184,10 @@ def create_ui():
             components[K.LAST_FINISHED_VIDEO_FULL_WIDTH] = gr.Video(
                 interactive=True,
                 autoplay=False,
-                # height=540,
                 label="Video Preview"
             )
             
-        with gr.Row():
+        with gr.Row(visible=False):
             components[K.CURRENT_TASK_PREVIEW_IMAGE] = gr.Image(
                 label=None,
                 interactive=False,

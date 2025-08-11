@@ -94,7 +94,7 @@ The application provides out-of-the-box support for older NVIDIA GPUs (Turing ar
 
 This approach, based on work by `@freely-boss`, ensures maximum compatibility without requiring any user intervention.
 
-### PNG Metadata for "Recipes"
+### PNG Metadata
 
 The application allows users to save and load their exact generation settings by embedding them in the input image's metadata, a feature common in other creative AI tools.
 
