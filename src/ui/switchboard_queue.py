@@ -48,7 +48,7 @@ def wire_events(components: dict):
     # This list must exactly match the number and order of items yielded by queue_processing.process_task_queue_and_listen.
     # The previous list had 12 items, but the generator yields 9, causing a ValueError.
     process_q_outputs = [
-        components[K.APP_STATE], # The generator yields a no-op for this, but it holds a place.
+        components[K.APP_STATE], # 0
         components[K.QUEUE_DF],
         components[K.LAST_FINISHED_VIDEO],
         components[K.CURRENT_TASK_PREVIEW_IMAGE],
@@ -56,6 +56,7 @@ def wire_events(components: dict):
         # Removed from alpha 0.2 scope - **TODO: can this be refactored out of this hard pipeline implementation?**
         components[K.CURRENT_TASK_PROGRESS_DESCRIPTION],
         components[K.CURRENT_TASK_PROGRESS_BAR],
+        components[K.SEGMENT_ETA_DISPLAY], # NEW: 6
         
         components[K.PROCESS_QUEUE_BUTTON],
         components[K.CREATE_PREVIEW_BUTTON],

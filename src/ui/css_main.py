@@ -122,7 +122,7 @@ fieldset#settings_menu_checkbox_group.button-group {
 /* --- NEW: Scrollable Prompt Cell (T03) --- */
 /* This allows long prompts in the queue to be scrollable instead of taking up excess vertical space. */
 .prompt-cell-scrollable {
-    max-height: 6em; /* Sets a max height of about 4-5 lines of text */
+    max-height: 5em; /* Sets a max height */
     overflow-y: auto; /* Adds a scrollbar only when content overflows */
     white-space: pre-wrap; /* Respects newlines and spaces within the prompt */
     word-break: break-word; /* Prevents long words from breaking the layout */
@@ -149,7 +149,7 @@ fieldset#settings_menu_checkbox_group.button-group {
 
 /* Status Column (1): Shrink to content, left-aligned, allows wrapping. */
 #queue_df th:nth-child(1), #queue_df td:nth-child(1) {
-    min-width: 8rem; /* Ensure enough space for status messages like "Processing" */
+    min-width: 10rem; /* Ensure enough space for status messages like "Processing" */
     text-align: left;
     white-space: normal; /* Allow text to wrap */
 }

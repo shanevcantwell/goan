@@ -75,10 +75,10 @@ def create_ui():
         with gr.Row(equal_height=True, elem_classes="compact-row"):
             with gr.Column(scale=1):
                 components[K.ADD_TASK_BUTTON] = gr.Button("Add to Queue", interactive=False, elem_classes="primary-button")
+                components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=True)
             with gr.Column(scale=2):
                 components[K.PROCESS_QUEUE_BUTTON] = gr.Button("▶️ Process Queue", variant="primary", interactive=False)
         with gr.Row(equal_height=True):          
-            components[K.SEGMENT_PROGRESS_BAR] = gr.HTML('', elem_id="segment_progress_bar_ui", visible=True)
             components[K.SEGMENT_ETA_DISPLAY] = gr.Markdown('', elem_id="segment_eta_display_ui", visible=True)
         with gr.Row(equal_height=True):  
             components[K.CURRENT_TASK_PROGRESS_BAR] = gr.HTML('', elem_id="current_task_progress_bar_ui", visible=False)
