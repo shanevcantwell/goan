@@ -98,12 +98,11 @@ CSS_TOP_PANEL = """
     padding: var(--spacing-sm) !important; /* Restore button padding */
 }
 
-/* Specific overrides for the image file input (the green drop zone) */
+/* Specific overrides for the image file input (the drop zone) */
 #image_file_input_ui {
     border: none !important; /* Its border is now handled by the column's top border */
     border-radius: 0 !important;
     box-shadow: none !important;
-    background-color: var(--color-accent-800); /* Keep its special background color */
 }
 
 /* Specific overrides for the input image display */
