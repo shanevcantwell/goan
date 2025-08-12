@@ -53,9 +53,6 @@ def initialize_job(
     )
     return total_latent_sections, job_id
 
-
-# Replace the old handle_segment_saving function with this updated version.
-
 def handle_segment_saving(
     # Loop state
     latent_padding_iteration: int,

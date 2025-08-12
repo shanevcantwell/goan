@@ -1,7 +1,7 @@
 # src/ui/css_top_panel.py
 # This file contains the specific CSS for the main top panel container.
 
-TOP_PANEL_CSS = """
+CSS_TOP_PANEL = """
 /* --- Top Section Container Styling --- */
 /* This is the main wrapper for the top 1/3 of the UI */
 .top-section-container {

@@ -2,9 +2,10 @@
 # This file contains the main/global CSS for the Gradio application.
 # It also imports and combines panel-specific CSS.
 
-from .css_top_panel import TOP_PANEL_CSS
+from .css_top_panel import CSS_TOP_PANEL
+from .css_bottom_panel import CSS_BOTTOM_PANEL
 
-MAIN_CSS = """
+CSS_MAIN = """
 /* --- Global Layout & Style Adjustments --- */
 /* Remove all gaps between components in rows, columns, and forms for a flush layout */
 .gradio-container .gr-row, .gradio-container .gr-column, .gradio-container .gr-form {
@@ -69,20 +70,11 @@ MAIN_CSS = """
    which prevents the "beveled" look from individual button borders. */
 .button-group {
     gap: 0 !important;
-    /* Add a border to the container itself and round its corners. */
+    /* Add a border to the container itself. */
     border: 1px solid var(--border-color-primary) !important;
     border-radius: 0 !important; /* Squared off to match the top panel style */
     /* Hide overflow to ensure inner button corners are sharp and contained. */
     overflow: hidden;
-}
-/* Remove all borders and rounding from the buttons inside the group. */
-.button-group > * .gr-button, .button-group > .gr-button {
-    border: none !important;
-    border-radius: 0 !important;
-}
-/* Add a separator line between buttons by adding a left border to all but the first. */
-.button-group > *:not(:first-child), .button-group > .gr-button:not(:first-child) {
-    border-left: 1px solid var(--border-color-primary) !important;
 }
 
 /* --- DEFINITIVE FIX FOR T06 (Inspector-based) --- */
@@ -286,4 +278,4 @@ current_task_preview_image_ui div.fixed img {
 """
 
 # Combine the main CSS with panel-specific CSS to create the final stylesheet.
-APP_CSS = MAIN_CSS + TOP_PANEL_CSS
+APP_CSS = CSS_MAIN + CSS_TOP_PANEL + CSS_BOTTOM_PANEL

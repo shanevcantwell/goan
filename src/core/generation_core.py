@@ -8,6 +8,7 @@ from PIL import Image, PngImagePlugin
 import logging
 from functools import partial
 from PIL.PngImagePlugin import PngInfo
+import time
 
 from diffusers_helper.hunyuan import encode_prompt_conds, vae_decode, vae_encode, vae_decode_fake
 from diffusers_helper.utils import save_bcthw_as_mp4, crop_or_pad_yield_mask, soft_append_bcthw, resize_and_center_crop
@@ -300,7 +301,7 @@ def worker(
                         curved_progress = roll_off_progress ** roll_off_factor
                         current_segment_gs_to_use = initial_gs_from_ui + (distilled_cfg_end_value_for_schedule - initial_gs_from_ui) * curved_progress
 
-            logger.info(f"Task {task_id}: Starting sample_hunyuan for segment {current_loop_segment_number}.")
+            # logger.info(f"Task {task_id}: Starting sample_hunyuan for segment {current_loop_segment_number}.")
             generated_latents = sample_hunyuan(
                 transformer=transformer,
                 sampler="unipc",
