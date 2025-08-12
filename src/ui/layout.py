@@ -108,14 +108,17 @@ def create_ui():
                     type="value",
                     interactive=True,
                 )
+            with gr.Column(scale=2):
+                components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
+        
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=1):
                 with gr.Group(visible=False, elem_classes="compact-group") as power_user_group:
                     components[K.POWER_USER_GROUP] = power_user_group
-                    # with gr.Row():
-                    #     with gr.Column(scale=2):
-                        # with gr.Column(scale=1):
-                        #     with gr.Row():
-                        #         components[K.RANDOM_SEED_BUTTON] = gr.Button("🎲", elem_classes=["icon-button"], scale=1)
-                        #         components[K.REUSE_SEED_BUTTON] = gr.Button("♻️", elem_classes=["icon-button"], scale=1) #
+                    # with gr.Column(scale=1):
+                    #     with gr.Row():
+                    #         components[K.RANDOM_SEED_BUTTON] = gr.Button("🎲", elem_classes=["icon-button"], scale=1)
+                    #         components[K.REUSE_SEED_BUTTON] = gr.Button("♻️", elem_classes=["icon-button"], scale=1) #
                     components[K.VARIABLE_CFG_SHAPE_RADIO] = gr.Radio(["Off", "Linear", "Roll-off"], label="Variable CFG", value="Off")
                     with gr.Row(elem_classes="compact-row"):
                         components[K.DISTILLED_CFG_START_SLIDER] = gr.Slider(label="Distilled CFG Start", minimum=1.0, maximum=32.0, value=10.0, step=0.01, container=False)
@@ -170,10 +173,7 @@ def create_ui():
                     components[K.SAVE_AS_DEFAULT_WORKSPACE_BUTTON] = gr.Button("Save as Default Workspace", variant="secondary")
                     components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required** for new output path to take effect.", visible=False)
 
-            # with gr.Column(scale=2):
-            #     with gr.Row():
             with gr.Column(scale=2):
-                components[K.CREATE_PREVIEW_BUTTON] = gr.Button("📸 Generate a preview for the currently processing segment", variant="secondary", interactive=False, elem_id="create_preview_button")
                 components[K.LAST_FINISHED_VIDEO] = gr.Video(visible=False, autoplay=False, height=540)
                 components[K.MANUAL_PREVIEW_IMAGE] = gr.Image(label="Manual Preview", interactive=False, visible=False, height=220, show_download_button=False, elem_id="manual_preview_image_ui", elem_classes="flat-input")
 

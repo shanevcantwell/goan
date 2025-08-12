@@ -34,6 +34,9 @@ class SharedState:
 # Event to signal that the current task should be paused and its state saved.
         self.pause_request_flag: threading.Event = threading.Event()
 
+        self.eta_lock: threading.Lock = threading.Lock()
+        self.current_eta_display: str = ""
+
 # --- Model and Global State Containers ---
 # This dictionary will be populated at runtime by the main script after the models are loaded.
         self.models: dict = {}
@@ -49,6 +52,14 @@ class SharedState:
 shared_state_instance = SharedState()
 
 IS_LEGACY_GPU_KEY = 'is_legacy_gpu'
+
+def set_eta_display(self, eta_string: str):
+    with self.eta_lock:
+        self.current_eta_display = eta_string
+
+def get_eta_display(self) -> str:
+    with self.eta_lock:
+        return self.current_eta_display
 
 # --- UI and Parameter Mapping Constants ---
 # Centralized list of UI component keys for LoRA management.

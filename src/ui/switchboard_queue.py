@@ -56,7 +56,7 @@ def wire_events(components: dict):
         # Removed from alpha 0.2 scope - **TODO: can this be refactored out of this hard pipeline implementation?**
         components[K.CURRENT_TASK_PROGRESS_DESCRIPTION],
         components[K.CURRENT_TASK_PROGRESS_BAR],
-        components[K.SEGMENT_ETA_DISPLAY], # NEW: 6
+        # components[K.SEGMENT_ETA_DISPLAY], # NEW: 6
         
         components[K.PROCESS_QUEUE_BUTTON],
         components[K.CREATE_PREVIEW_BUTTON],

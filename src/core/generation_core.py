@@ -197,13 +197,12 @@ def worker(
         for latent_padding_iteration, latent_padding in enumerate(latent_paddings):
             # This check for the main interrupt flag makes the Stop button more responsive,
             # allowing it to halt processing between segments.
-            if shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                logger.info(f"Task {task_id}: Stop signal detected at start of segment loop. Breaking generation loop.")
-                break
+            current_loop_segment_number = latent_padding_iteration + 1
+
             is_last_section = latent_padding == 0
             latent_padding_size = latent_padding * latent_window_size
             segment_start_time = time.time() # Start timer for this segment
-
+            
             # --- Prepare Latents for the Segment ---
             # This block is now encapsulated in a helper function for clarity.
             segment_latents = inference_helpers.prepare_segment_latents(
@@ -276,7 +275,6 @@ def worker(
                             preview_img_np,
                             desc,
                             make_progress_bar_html(percentage, hint),
-                            eta_display # New: ETA for the current segment
                         ),
                     )
                 )
