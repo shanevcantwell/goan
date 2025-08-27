@@ -39,7 +39,7 @@ def ui_update_total_segments(total_seconds_ui, fps_ui, latent_window_size_ui) ->
         logger.debug(f"ui_update_total_segments received: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui} (latent_window_size={latent_window_size})")
         total_frames = int(total_seconds_ui * fps_ui)
         total_segments = int(max(round(total_frames / frames_per_segment), 1)) if frames_per_segment > 0 else 1
-        update_text = f"{total_seconds_ui}s: {total_segments} Segments, {total_frames} Total Frames"
+        update_text = f"{total_seconds_ui}sec: {total_segments} Segments, {total_frames} Total Frames"
 
     except (TypeError, ValueError):
         logger.error(f"Error in ui_update_total_segments. Inputs: total_seconds_ui={total_seconds_ui}, fps_ui={fps_ui}", exc_info=True)

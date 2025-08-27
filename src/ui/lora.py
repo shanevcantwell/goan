@@ -7,7 +7,7 @@ import shutil
 import logging
 from safetensors.torch import load_file
 from core import model_loader
-from lora import lora_key_mapper # Import the new key mapper
+from src.lora import lora_key_mapper
 
 from .enums import ComponentKey as K
 from .shared_state import shared_state_instance
@@ -75,19 +75,22 @@ class LoRAManager:
             
             # Use the new key mapper to translate and analyze the LoRA keys
             model_sd = model.state_dict()
-            translated_lora_sd, report = lora_key_mapper.translate_and_analyze(raw_lora_tensors, model_sd)
+            translated_lora_sd, report = lora_key_mapper.translate_and_analyze(raw_lora_tensors, model_sd, target_key)
 
-            # Log the results for debugging and provide UI feedback
-            mapped_count = len(report.get('mapped', []))
-            unmapped_count = len(report.get('unmapped', []))
-            logger.info(f"LoRA Mapping Report for '{target_key}': {mapped_count} mapped, {unmapped_count} unmapped.")
-            if unmapped_count > 0:
-                gr.Warning(f"LoRA '{lora_name}' had {unmapped_count} unmappable layers for target '{target_key}'. Check logs for details.")
-                logger.warning(f"First 5 unmapped keys for '{target_key}': {report['unmapped'][:5]}")
+            # Log the results from the analysis report for debugging and provide UI feedback
+            keys_found = report.get('keys_found', 0)
+            keys_not_found = report.get('keys_not_found', [])
+            shape_mismatches = report.get('shape_mismatches', [])
+            unmappable_count = len(keys_not_found) + len(shape_mismatches)
+
+            logger.info(f"LoRA Mapping Report for '{target_key}': {keys_found} keys matched. {len(keys_not_found)} not found, {len(shape_mismatches)} shape mismatches.")
+            if unmappable_count > 0:
+                gr.Warning(f"LoRA '{lora_name}' had {unmappable_count} unmappable layers for target '{target_key}'. Check logs for details.")
+                if keys_not_found: logger.warning(f"First 5 unmapped keys for '{target_key}': {keys_not_found[:5]}")
             
-            if mapped_count > 0:
-                gr.Info(f"LoRA '{lora_name}' successfully mapped to {mapped_count} layers for target '{target_key}'.")
-            elif unmapped_count > 0: # Only show this if no layers were mapped at all
+            if keys_found > 0:
+                gr.Info(f"LoRA '{lora_name}' successfully mapped to {keys_found} layers for target '{target_key}'.")
+            elif unmappable_count > 0: # Only show this if no layers were mapped at all
                 gr.Warning(f"LoRA '{lora_name}' could not be mapped to any layers for target '{target_key}'. The LoRA may be incompatible.")
 
             # Use the translated state dict for merging
@@ -99,6 +102,8 @@ class LoRAManager:
         modified_keys_count = 0
         model_keys = set(model.state_dict().keys())
 
+        prefix_to_strip = f"{model_target_key}."
+
         # Iterate through the translated LoRA weights and apply them
         lora_down_keys = [k for k in translated_lora_tensors.keys() if 'lora_down.weight' in k]
 
@@ -108,12 +113,21 @@ class LoRAManager:
 
             if up_key not in translated_lora_tensors: continue
 
-            # The model's weight key is the LoRA key path without the .lora_down.weight suffix
-            module_path = down_key.rsplit('.lora_down.weight', 1)[0]
+            # The key from the mapper has a prefix (e.g., 'transformer.'), but the model
+            # object is just the transformer itself. We must strip the prefix to get
+            # the correct submodule path relative to the model object.
+            base_key_with_prefix = down_key.rsplit('.lora_down.weight', 1)[0]
+
+            if not base_key_with_prefix.startswith(prefix_to_strip):
+                logger.debug(f"Skipping LoRA key '{down_key}' as it does not match target '{model_target_key}'.")
+                continue
+
+            # module_path becomes 'transformer_blocks.0.attn.to_q'
+            module_path = base_key_with_prefix.removeprefix(prefix_to_strip)
             model_weight_key = f"{module_path}.weight"
 
             if model_weight_key not in model_keys:
-                logger.debug(f"Skipping translated LoRA key (no match in model): {down_key} -> {model_weight_key}")
+                logger.debug(f"Skipping LoRA key (target weight '{model_weight_key}' not in model): {down_key}")
                 continue
 
             # Get the actual layer module from the model

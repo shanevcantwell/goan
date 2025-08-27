@@ -177,9 +177,23 @@ def toggle_manual_preview_action(input_image_pil):
     Toggles the manual preview request flag in shared state.
     Returns a dictionary of button state updates.
     """
+    if not queue_manager_instance.get_state().get("processing", False):
+        gr.Warning("Cannot request preview when processing is not active.")
+        return helpers.update_button_states(input_image_pil)
+
     if shared_state_module.shared_state_instance.preview_request_flag.is_set():
-        shared_state_module.shared_state_instance.preview_request_flag.clear()
+        gr.Info("Preview generation has already been requested.")
     else:
+        logger.info("Manual preview requested. Setting flag and sending signal to agent.")
         shared_state_module.shared_state_instance.preview_request_flag.set()
+
+        # In addition to setting the flag for optimistic UI updates, we must
+        # send a message to the agent's processing loop to trigger the action.
+        from .agents import ProcessingAgent
+        agent = ProcessingAgent()
+        agent.send({"type": "request_preview"})
+        gr.Info("Preview generation requested.")
+
     # Return a dictionary of updates for all buttons.
+    # This will reflect the "requested" state immediately.
     return helpers.update_button_states(input_image_pil)

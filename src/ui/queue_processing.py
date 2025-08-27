@@ -8,6 +8,8 @@ from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 from . import queue_helpers
 from .agents import ProcessingAgent, ui_update_queue
+from .enums import ComponentKey as K
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,17 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
         # Set the flag for immediate UI feedback via update_button_states
         shared_state_module.shared_state_instance.stop_requested_flag.set()
         agent.send({"type": "stop_queue"})
-        gr.Info("Stop requested. The queue will halt after the current task is stopped.")
-        # Do not return. Fall through to the listener loop to catch feedback from the agent.
+        gr.Info("Stop signal sent. The queue will halt after the current task is stopped.")
+        # This is a 'stop' request. We send the signal and then immediately exit
+        # this new generator instance. The *original* listener loop (from the
+        # 'start' click) is still running and will receive the final "queue_finished"
+        # signal from the agent to terminate properly. Starting a second listener
+        # loop here would cause conflicts.
+        # We yield one final time to update the UI description before exiting.
+        yield (gr.update(), gr.update(), gr.update(), gr.update(),
+               "Stop signal sent. Waiting for current task to halt...",
+               gr.update(), gr.update(), gr.update(), gr.update())
+        return
     else:
         # If not processing, this is a "start" request.
         # Clear all state flags at the beginning of a new run.
@@ -65,15 +76,31 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
                 )
             elif flag == "progress":
                 # Unpack data: task_id, preview_np, desc, html, eta_display
-                _, preview_np, desc, html = data  # type: ignore
+                _, preview_np, desc, html, current_segment, preview_frequency, preview_specified_segments_str = data  # TODO: Expect 7 but get 4
 
                 # FIX: Re-evaluate the preview button's state with every progress update.
                 # This ensures that after a manual preview request is consumed by the worker
                 # (and the flag is cleared), the button re-enables itself on the next update.
                 preview_requested = shared_state_module.shared_state_instance.preview_request_flag.is_set()
+
+                # --- Determine if a preview is being generated automatically ---
+                is_automatic_preview = False
+                # Check frequency-based preview (safe check for frequency > 0)
+                if preview_frequency > 0 and current_segment % preview_frequency == 0:
+                    is_automatic_preview = True
+                # Check specified-segment preview
+                if preview_specified_segments_str and not is_automatic_preview:
+                    try:
+                        parsed_segments = {int(s.strip()) for s in preview_specified_segments_str.split(',') if s.strip()}
+                        if current_segment in parsed_segments:
+                            is_automatic_preview = True
+                    except ValueError:
+                        logger.warning(f"Could not parse preview_specified_segments: '{preview_specified_segments_str}'")
+
+                preview_generating = preview_requested or is_automatic_preview
                 preview_button_update = gr.update(
                     interactive=not preview_requested,
-                    value="📸 Preview generation requested" if preview_requested else "📸 Generate a preview for the currently processing segment",
+                    value="📸 Preview generation requested" if preview_generating else "📸 Generate a preview for the currently processing segment",
                     variant="secondary" if preview_requested else "primary"
                 )
 
@@ -82,11 +109,10 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
                     gr.update(),  # QUEUE_DF (index 1)
                     gr.update(),  # LAST_FINISHED_VIDEO (index 2)
                     gr.update(value=preview_np),  # CURRENT_TASK_PREVIEW_IMAGE (index 3)
-                    gr.update(value=desc), # CURRENT_TASK_PROGRESS_DESCRIPTION (index 4)
-                    gr.update(value=html), # CURRENT_TASK_PROGRESS_BAR (index 5)
-                    # gr.update(value=eta_display), # SEGMENT_ETA_DISPLAY (index 6)
-                    preview_button_update, # PROCESS_QUEUE_BUTTON (index 6)
-                    gr.update(), # CREATE_PREVIEW_BUTTON (index 7)
+                    gr.update(value=desc),  # CURRENT_TASK_PROGRESS_DESCRIPTION (index 4)
+                    gr.update(value=html),  # CURRENT_TASK_PROGRESS_BAR (index 5)
+                    gr.update(),  # PROCESS_QUEUE_BUTTON (index 6)
+                    preview_button_update,  # CREATE_PREVIEW_BUTTON (index 7)
                     gr.update()  # CLEAR_QUEUE_BUTTON (index 8)
                 )
             elif flag == "file":

@@ -8,7 +8,7 @@ import logging
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.core import model_loader
-from src.core.lora_key_mapper import translate_and_analyze
+from .lora_key_mapper import translate_and_analyze
 from safetensors.torch import load_file
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

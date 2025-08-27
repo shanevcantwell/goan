@@ -18,7 +18,7 @@ from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 from core import model_loader
-from ui import shared_state as shared_state_module
+from ui import shared_state as shared_state_module, enums
 from core import generation_utils, inference_helpers
 import traceback
 logger = logging.getLogger(__name__)
@@ -197,6 +197,12 @@ def worker(
         for latent_padding_iteration, latent_padding in enumerate(latent_paddings):
             # This check for the main interrupt flag makes the Stop button more responsive,
             # allowing it to halt processing between segments.
+            if shared_state_module.shared_state_instance.interrupt_flag.is_set():
+                logger.info(f"Task {task_id}: Stop signal detected before starting segment {latent_padding_iteration + 1}.")
+                # Signal that the process has stopped.
+                output_queue_ref.push(('stopped_by_user', task_id))
+                raise InterruptedError("Stop signal received between segments.")
+
             current_loop_segment_number = latent_padding_iteration + 1
 
             is_last_section = latent_padding == 0
@@ -232,6 +238,8 @@ def worker(
                 logger.debug(f"Task {task_id}: Callback diffusion step {d['i'] + 1}/{steps}. Interrupt flag: {shared_state_module.shared_state_instance.interrupt_flag.is_set()}")
                 if shared_state_module.shared_state_instance.interrupt_flag.is_set():
                     logger.info(f"Task {task_id}: InterruptedError raised in callback_diffusion_step.")
+                    # Send a more specific message to the UI.
+                    output_queue_ref.push(('stopping_process', (task_id, "during sampling")))
                     raise InterruptedError("Stop signal received during sampling.")
                 current_diffusion_step = d["i"] + 1
                 preview_latent = d["denoised"]
@@ -275,6 +283,9 @@ def worker(
                             preview_img_np,
                             desc,
                             make_progress_bar_html(percentage, hint),
+                            current_loop_segment_number,
+                            preview_frequency,
+                            preview_specified_segments,
                         ),
                     )
                 )
@@ -365,7 +376,11 @@ def worker(
                         f"Segment {current_loop_segment_number}/{total_latent_sections}: Decoding frames...",
                         make_progress_bar_html(
                             50, "VAE Decode"
-                        ),  # Progress bar is half full to show having moved past sampling.
+                        ),
+                        # Add missing values to match the 7-item tuple expected by the UI listener.
+                        current_loop_segment_number,
+                        preview_frequency,
+                        preview_specified_segments,
                     ),
                 )
             )

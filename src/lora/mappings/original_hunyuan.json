@@ -1,0 +1,17 @@
+{
+    "description": "Convention based on original community-provided conversion scripts.",
+    "rules": {
+        "double_blocks": "transformer_blocks",
+        "_img_mod_linear": ".norm1_linear",
+        "_img_attn_qkv": ".attn_to_QKV",
+        "_img_attn_proj": ".attn_to_out_0",
+        "_img_mlp_fc1": ".ff_net_0_proj",
+        "_img_mlp_fc2": ".ff_net_2",
+        "_txt_mod_linear": ".norm1_context_linear", "_txt_attn_qkv": ".attn_add_QKV_proj",
+        "_txt_attn_proj": ".attn_to_add_out", "_txt_mlp_fc1": ".ff_context_net_0_proj",
+        "_txt_mlp_fc2": ".ff_context_net_2", "single_blocks": "single_transformer_blocks",
+        "_linear1": ".attn_to_QKVM", "_linear2": ".proj_out", "_modulation_linear": ".norm_linear",
+        ".lora_A.weight": ".lora_down.weight",
+        ".lora_B.weight": ".lora_up.weight"
+    }
+}
