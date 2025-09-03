@@ -1,0 +1,7 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "uvicorn main_api:app --reload --port 8000"
+  }
+}

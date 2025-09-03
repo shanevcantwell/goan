@@ -1,0 +1,42 @@
+{
+    // These settings are recommended for the 'goan' project to improve
+    // editor performance and reduce noise for AI code assistants.
+    "files.exclude": {
+        // Python build, cache, and compiled files (from .gitignore)
+        "**/__pycache__": true,
+        "**/*.py[cod]": true,
+        "**/*.so": true,
+        "**/build/": true,
+        "**/dist/": true,
+        "**/eggs/": true,
+        "**/.eggs/": true,
+        "**/__pypackages__/": true,
+
+        // Virtual Environments (from .gitignore)
+        "**/.venv": true,
+        "**/venv": true,
+        "**/.venv_goan": true,
+
+        // Test, Linter, and Tooling caches (from .gitignore)
+        "**/.pytest_cache": true,
+        "**/.venv_goan": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/htmlcov/": true,
+        "**/.coverage": true,
+        "**/.ipynb_checkpoints": true,
+
+        // Application-specific directories (from .gitignore)
+        "**/logs": true,           // Log files
+        "**/hf_download": true,    // Hugging Face model cache
+        "**/outputs": true,        // Generated output files
+        "./loras": true,          // LoRA model files (can be noisy with many large files)
+        "**/saves": true,          // Saved states or sessions
+        "**/tmp": true,            // Temporary files
+
+        // Other IDE / Tooling folders & archives
+        "**/.idea": true,
+        "**/.vs": true,
+        "**/design_drafts": true,
+        "**/*.zip": true    }
+}

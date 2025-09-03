@@ -1,0 +1,11 @@
+{
+  "name": "goan-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+    "build": "pnpm --filter client build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

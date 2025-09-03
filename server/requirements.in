@@ -1,0 +1,15 @@
+# server/requirements.in
+#
+# This file contains the high-level Python dependencies for the server.
+# Use 'pip-compile' to generate the requirements.txt lockfile.
+# Use 'pip-sync' to install the locked dependencies into your environment.
+#
+
+fastapi
+uvicorn[standard] # Includes standard optimizations
+pydantic
+python-multipart # For form data (file uploads)
+numpy
+
+# Development tools
+pip-tools
