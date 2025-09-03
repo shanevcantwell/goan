@@ -7,7 +7,7 @@ from PIL import Image
 from ui.queue_manager import queue_manager_instance
 from ui.agents import ProcessingAgent
 from ui import shared_state as shared_state_module # Keep for shared state access
-from ui import queue_helpers, metadata as metadata_manager
+# from ui import queue_helpers, metadata as metadata_manager
 from ui.enums import UIMessage
 
 logger = logging.getLogger(__name__)

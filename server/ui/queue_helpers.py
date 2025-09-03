@@ -15,7 +15,7 @@ from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 from .enums import ComponentKey as K
 from .settings_manager import settings_manager_instance
-from . import event_handlers
+# from . import event_handlers
 
 logger = logging.getLogger(__name__)
 
