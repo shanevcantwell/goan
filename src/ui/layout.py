@@ -146,7 +146,7 @@ def create_ui():
                             components[K.FPS_SLIDER] = gr.Slider(label="MP4 Framerate (FPS)", minimum=1, maximum=60, value=30, step=1, container=False)
                         with gr.Row(elem_classes="compact-row"):
                             components[K.MP4_CRF_SLIDER] = gr.Slider(label="MP4 CRF", minimum=0, maximum=51, value=18, step=1, container=False)
-                        components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=False, interactive=True, container=False)
+                        components[K.LATENT_WINDOW_SIZE_SLIDER] = gr.Slider(label="Latent Window", minimum=1, maximum=33, value=9, step=1, visible=True, interactive=True, container=False)
                         components[K.OUTPUT_FOLDER_TEXTBOX] = gr.Textbox(label="Output Folder", value=settings_manager_instance.get_initial_output_folder())
                         components[K.SAVE_AS_DEFAULT_WORKSPACE_BUTTON] = gr.Button("Save as Default Workspace", variant="secondary")
                         components[K.RELAUNCH_NOTIFICATION_MD] = gr.Markdown("ℹ️ **Restart required**...", visible=False)
