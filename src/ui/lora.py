@@ -7,7 +7,7 @@ import shutil
 import logging
 from safetensors.torch import load_file
 from core import model_loader
-from src.lora import lora_key_mapper
+from lora import lora_key_mapper
 
 from .enums import ComponentKey as K
 from .shared_state import shared_state_instance

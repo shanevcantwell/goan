@@ -4,10 +4,9 @@ import queue
 import logging
 import numpy as np
 from PIL import Image
-
 from ui.queue_manager import queue_manager_instance
-from ui.agents import ProcessingAgent, ui_update_queue
-from ui import shared_state as shared_state_module
+from ui.agents import ProcessingAgent
+from ui import shared_state as shared_state_module # Keep for shared state access
 from ui import queue_helpers, metadata as metadata_manager
 from ui.enums import UIMessage
 
@@ -101,22 +100,6 @@ class GoanAPI:
         else:
             logger.info("API: Manual preview requested. Setting flag.")
             self.shared_state.preview_request_flag.set()
-
-    # --- Asynchronous Update Handling ---
-
-    def listen_for_updates(self, timeout: float = 1.0) -> tuple | None:
-        """
-        Pulls the next available message from the UI update queue.
-        This is a simple polling mechanism suitable for a generator loop.
-        For a true web API, this would be replaced by WebSockets or SSE.
-        
-        Returns:
-            A tuple of (UIMessage, data_dict) or None if the queue is empty.
-        """
-        try:
-            return ui_update_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
 
     # --- Metadata and Image Handling ---
     

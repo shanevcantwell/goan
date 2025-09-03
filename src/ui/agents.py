@@ -10,7 +10,7 @@ from core.generation_core import worker
 from diffusers_helper.thread_utils import AsyncStream, async_run
 from . import shared_state as shared_state_module
 from .enums import UIMessage
-from .lora import LoRAManager
+from .lora import lora_key_mapper as LoRAManager
 from .queue_manager import queue_manager_instance
 from api.sse_manager import sse_manager # <-- IMPORT THE NEW MANAGER
 
