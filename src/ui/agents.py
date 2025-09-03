@@ -4,19 +4,31 @@ import queue
 import logging
 import traceback
 import numpy as np
+import asyncio
 
 from core.generation_core import worker
 from diffusers_helper.thread_utils import AsyncStream, async_run
-from core import generation_utils
 from . import shared_state as shared_state_module
 from .enums import UIMessage
 from .lora import LoRAManager
 from .queue_manager import queue_manager_instance
+from api.sse_manager import sse_manager # <-- IMPORT THE NEW MANAGER
 
 logger = logging.getLogger(__name__)
 
-# This queue is the bridge from the agent back to the UI thread.
-ui_update_queue = queue.Queue()
+# The ui_update_queue is now obsolete and can be removed.
+# We keep the agent's mailbox for commands from the API.
+
+def broadcast_sync(flag, data):
+    """Helper to run the async broadcast from a synchronous thread."""
+    try:
+        # Get or create an event loop for the current thread
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    loop.run_until_complete(sse_manager.broadcast(flag, data))
 
 def worker_wrapper(output_queue_ref, **kwargs):
     """
@@ -44,23 +56,15 @@ class ProcessingAgent(threading.Thread):
     def __init__(self):
         if hasattr(self, '_initialized') and self._initialized:
             return
-
         with self._lock:
-            # Double-check inside the lock to ensure initialization happens only once.
             if hasattr(self, '_initialized') and self._initialized:
                 return
-
             super().__init__(daemon=True)
             self.mailbox = queue.Queue()
             self.is_processing = False
-
-            # On agent initialization (app startup), forcefully reset the queue's
-            # processing and editing state. This prevents a stale state from a
-            # previous session's `unload` event from causing a UI lockup on refresh.
             logger.info("ProcessingAgent initializing, resetting queue state to idle.")
             queue_manager_instance.set_processing(False)
             queue_manager_instance.clear_edit_mode()
-
             self.start()
             self._initialized = True
 
@@ -80,85 +84,62 @@ class ProcessingAgent(threading.Thread):
             elif message.get("type") == "pause":
                 self._handle_pause()
 
-
     def _handle_start(self, message):
-        if self.is_processing:
-            return
-
+        if self.is_processing: return
         if not queue_manager_instance.has_pending_tasks():
-            ui_update_queue.put((UIMessage.INFO, "Queue is empty. Add tasks to process."))
+            broadcast_sync(UIMessage.INFO, "Queue is empty. Add tasks to process.")
             return
 
         self.is_processing = True
         queue_manager_instance.set_processing(True)
-        ui_update_queue.put((UIMessage.PROCESSING_STARTED, None))
+        broadcast_sync(UIMessage.PROCESSING_STARTED, None)
         shared_state_module.shared_state_instance.pause_request_flag.clear()
         shared_state_module.shared_state_instance.stop_requested_flag.clear()
         shared_state_module.shared_state_instance.interrupt_flag.clear()
-
-        # Run the actual processing in a separate thread to not block the agent's mailbox
         processing_thread = threading.Thread(target=self._processing_loop, args=(message,))
         processing_thread.start()
 
     def _handle_stop_queue(self):
-        """Handles a 'hard stop' request to terminate the entire queue."""
-        if not self.is_processing:
-            return
+        if not self.is_processing: return
         shared_state_module.shared_state_instance.pause_request_flag.clear()
-        ui_update_queue.put((UIMessage.STOPPING_PROCESS, None))
+        broadcast_sync(UIMessage.STOPPING_PROCESS, None)
         shared_state_module.shared_state_instance.stop_requested_flag.set()
         shared_state_module.shared_state_instance.interrupt_flag.set()
-        logger.info("Stop Queue signal sent. Worker will be interrupted and the queue will halt.")
+        logger.info("Stop Queue signal sent.")
 
     def _handle_cancel_task(self):
-        """Handles a 'soft stop' to cancel only the currently running task."""
-        if not self.is_processing:
-            return
+        if not self.is_processing: return
         shared_state_module.shared_state_instance.interrupt_flag.set()
-        logger.info("Cancel Task signal sent. Worker will stop, and the agent will proceed to the next task.")
+        logger.info("Cancel Task signal sent.")
 
     def _handle_pause(self):
-        """Handles a request to pause the current task and save its state."""
-        if not self.is_processing:
-            return
+        if not self.is_processing: return
         logger.info("Pause request received by agent. Setting flags.")
         shared_state_module.shared_state_instance.pause_request_flag.set()
         shared_state_module.shared_state_instance.interrupt_flag.set()
+
     def _processing_loop(self, start_message):
         lora_controls = start_message.get("lora_controls")
-
         lora_handler = LoRAManager()
         try:
             if lora_controls:
                 lora_handler.apply_lora(*lora_controls)
 
-            # The main processing loop. It will only terminate if a full stop is requested.
             while not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-                # If a full stop hasn't been requested, we can clear the single-task interrupt flag
-                # from a previous iteration. If a full stop IS requested, we must leave the
-                # interrupt flag set for the worker to see it and halt. This prevents a race
-                # condition where the flag is cleared before the worker can act on it.
                 if not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
                     shared_state_module.shared_state_instance.interrupt_flag.clear()
-
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                    break
+                if shared_state_module.shared_state_instance.stop_requested_flag.is_set(): break
+                
                 task = queue_manager_instance.get_and_start_next_task()
-
-                if task is None:  # No more pending tasks
-                    ui_update_queue.put((UIMessage.INFO, "All tasks processed."))
+                if task is None:
+                    broadcast_sync(UIMessage.INFO, "All tasks processed.")
                     break
 
-                ui_update_queue.put((UIMessage.TASK_STARTING, task))
-
+                broadcast_sync(UIMessage.TASK_STARTING, task)
                 output_stream = AsyncStream()
                 worker_args = {**task["params"], "task_id": task["id"], **shared_state_module.shared_state_instance.models}
                 worker_args.pop('transformer', None)
-
-                # The worker needs new arguments that the UI doesn't provide yet.
-                # We add safe default values here to satisfy the full function signature.
-                worker_args.setdefault('force_standard_fps', False) # This is a valid worker arg
-
+                worker_args.setdefault('force_standard_fps', False)
                 async_run(worker_wrapper, output_queue_ref=output_stream.output_queue, **worker_args)
 
                 task_final_status = "error"
@@ -166,66 +147,45 @@ class ProcessingAgent(threading.Thread):
                 error_message = "Worker exited unexpectedly."
 
                 while True:
-                    # This is a blocking call. The agent will wait here until the worker
-                    # sends a message. The `FIFOQueue` object from the helper library
-                    # uses .next() and does not support timeouts.
                     flag, data = output_stream.output_queue.next()
-                    ui_update_queue.put((flag, data))
+                    
+                    # Broadcast all messages to clients
+                    broadcast_sync(flag, data)
 
-                    if flag == UIMessage.END:
-                        _, success, final_path = data
-                        task_final_status = "done" if success else "error"
-                        final_output_path = final_path
-                        break
-                    elif flag == UIMessage.CRASH or flag == UIMessage.ERROR:
-                        task_final_status = "error"
-                        error_message = data.get('message', "Worker process crashed.") if isinstance(data, dict) else "Worker process crashed."
-                        break
-                    elif flag == UIMessage.ABORTED:
-                        task_final_status = "aborted"
-                        error_message = None
-                        break
-                    elif flag == UIMessage.PAUSED_WITH_STATE:
-                        task_id, history_latents, preview_path = data
-                        task_final_status = "paused"
-                        error_message = None
-                        final_output_path = preview_path # The preview generated before pausing
-
-                        logger.info(f"Task {task_id} hypothetially paused with latent state. Saving resume file would happen here.")
+                    if flag in [UIMessage.END, UIMessage.CRASH, UIMessage.ERROR, UIMessage.ABORTED, UIMessage.PAUSED_WITH_STATE]:
+                        if flag == UIMessage.END:
+                            success = data.get('success', False)
+                            task_final_status = "done" if success else "error"
+                            final_output_path = data.get('final_path')
+                        elif flag in [UIMessage.CRASH, UIMessage.ERROR]:
+                            task_final_status = "error"
+                            error_message = data.get('message', "Worker crashed.") if isinstance(data, dict) else str(data)
+                        elif flag == UIMessage.ABORTED:
+                            task_final_status = "aborted"
+                            error_message = None
+                        elif flag == UIMessage.PAUSED_WITH_STATE:
+                            task_final_status = "paused"
+                            error_message = None
+                            final_output_path = data.get('preview_path')
                         break
 
-                    elif flag == UIMessage.FILE:
-                        _, new_video_path, _ = data
-                        final_output_path = new_video_path
-
-                # If the task was aborted by the user, we want to reset its status to 'pending'
-                # in the backend queue so it can be run again.
-                final_status_for_queue = task_final_status
-                if task_final_status == "aborted":
-                    final_status_for_queue = "pending"
-                    error_message = None
-
+                final_status_for_queue = "pending" if task_final_status == "aborted" else task_final_status
                 queue_manager_instance.complete_task(
-                    task_id=task["id"],
-                    status=final_status_for_queue,
-                    final_path=final_output_path,
-                    error_msg=error_message
+                    task_id=task["id"], status=final_status_for_queue,
+                    final_path=final_output_path, error_msg=error_message
                 )
-                # The UI listener, however, still needs to know the original 'aborted' status
-                # to perform the correct UI cleanup (e.g., clearing progress bars).
-                ui_update_queue.put((UIMessage.TASK_FINISHED, {"id": task["id"], "status": task_final_status, "final_path": final_output_path}))
+                broadcast_sync(UIMessage.TASK_FINISHED, {"id": task["id"], "status": task_final_status, "final_path": final_output_path})
 
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                    ui_update_queue.put((UIMessage.INFO, "Queue processing stopped by user."))
+                if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+                    broadcast_sync(UIMessage.INFO, "Queue processing stopped by user.")
                     break
         finally:
-            logger.info("Processing finished. Reverting all LoRAs to clean up.")
+            logger.info("Processing finished. Reverting all LoRAs.")
             lora_handler.revert_all_loras()
-            logger.info("All LoRAs reverted. Processing agent is now idle.")
             self.is_processing = False
             queue_manager_instance.set_processing(False)
             shared_state_module.shared_state_instance.interrupt_flag.clear()
-            shared_state_module.shared_state_instance.stop_requested_flag.clear()            
+            shared_state_module.shared_state_instance.stop_requested_flag.clear()
             shared_state_module.shared_state_instance.pause_request_flag.clear()
             logger.info("All state flags cleared.")
-            ui_update_queue.put((UIMessage.QUEUE_FINISHED, None))
+            broadcast_sync(UIMessage.QUEUE_FINISHED, None)
