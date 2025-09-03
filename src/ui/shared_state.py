@@ -110,3 +110,19 @@ CREATIVE_PARAM_KEYS = [UI_TO_WORKER_PARAM_MAP[key] for key in CREATIVE_UI_KEYS]
 
 # Centralized constant for the queue state JSON filename inside the zip.
 QUEUE_STATE_JSON_IN_ZIP = "queue_state.json"
+
+
+# Keys for the UI components that are outputs of the main processing generator.
+# This list is the single source of truth for the order of yielded values.
+QUEUE_PROCESSING_OUTPUT_KEYS = [
+    K.APP_STATE,
+    K.QUEUE_DF,
+    K.LAST_FINISHED_VIDEO,
+    K.CURRENT_TASK_PREVIEW_IMAGE,
+    K.CURRENT_TASK_PROGRESS_DESCRIPTION,
+    K.CURRENT_TASK_PROGRESS_BAR,
+    K.SEGMENT_ETA_DISPLAY,
+    K.PROCESS_QUEUE_BUTTON,
+    K.CREATE_PREVIEW_BUTTON,
+    K.CLEAR_QUEUE_BUTTON,
+]

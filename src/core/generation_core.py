@@ -1,4 +1,5 @@
-﻿import torch
+﻿# core/generation_core.py
+import torch
 import einops
 import traceback
 import numpy as np
@@ -18,7 +19,8 @@ from diffusers_helper.clip_vision import hf_clip_vision_encode
 from diffusers_helper.bucket_tools import find_nearest_bucket
 from diffusers_helper.gradio.progress_bar import make_progress_bar_html
 from core import model_loader
-from ui import shared_state as shared_state_module, enums
+from ui import shared_state as shared_state_module
+from ui.enums import UIMessage
 from core import generation_utils, inference_helpers
 import traceback
 logger = logging.getLogger(__name__)
@@ -89,7 +91,7 @@ def worker(
         distilled_cfg_end if distilled_cfg_end is not None else initial_gs_from_ui
     )
 
-    graceful_abort_preview_path = None
+    graceful_pause_preview_path = None
     # Ensure transformer is loaded before accessing its properties
     transformer = model_loader.get_transformer_model()
     original_fp32_setting = transformer.high_quality_fp32_output_for_inference # Store original setting
@@ -110,7 +112,15 @@ def worker(
     try:
         if not isinstance(input_image, np.ndarray):
             raise ValueError(f"Task {task_id}: input_image is not a NumPy array.")
-        output_queue_ref.push(('progress', (task_id, None, f'Total Segments: {total_latent_sections}', make_progress_bar_html(0, "Image processing ..."))))
+        output_queue_ref.push((UIMessage.PROGRESS, {
+            "task_id": task_id,
+            "preview_np": None,
+            "description": f'Total Segments: {total_latent_sections}',
+            "html": make_progress_bar_html(0, "Image processing ..."),
+            "current_segment": 0,
+            "preview_frequency": preview_frequency,
+            "preview_specified_segments": preview_specified_segments
+        }))
         if input_image.shape[-1] == 4:
             pil_img = Image.fromarray(input_image)
             input_image = np.array(pil_img.convert("RGB"))
@@ -168,18 +178,15 @@ def worker(
         clip_l_pooler_n = conditioning_tensors['clip_l_pooler_n']
         start_latent = conditioning_tensors['start_latent']
         image_encoder_last_hidden_state = conditioning_tensors['image_encoder_last_hidden_state']
-
-        output_queue_ref.push(
-            (
-                "progress",
-                (
-                    task_id,
-                    None,
-                    f"Total Segments: {total_latent_sections}",
-                    make_progress_bar_html(0, "Start sampling ..."),
-                ),
-            )
-        )
+        output_queue_ref.push((UIMessage.PROGRESS, {
+            "task_id": task_id,
+            "preview_np": None,
+            "description": f"Total Segments: {total_latent_sections}",
+            "html": make_progress_bar_html(0, "Start sampling ..."),
+            "current_segment": 0,
+            "preview_frequency": preview_frequency,
+            "preview_specified_segments": preview_specified_segments
+        }))
         rnd = torch.Generator(device="cpu").manual_seed(int(seed))
         num_frames = latent_window_size * 4 - 3
 
@@ -200,7 +207,7 @@ def worker(
             if shared_state_module.shared_state_instance.interrupt_flag.is_set():
                 logger.info(f"Task {task_id}: Stop signal detected before starting segment {latent_padding_iteration + 1}.")
                 # Signal that the process has stopped.
-                output_queue_ref.push(('stopped_by_user', task_id))
+                output_queue_ref.push((UIMessage.STOPPING_PROCESS, {'task_id': task_id}))
                 raise InterruptedError("Stop signal received between segments.")
 
             current_loop_segment_number = latent_padding_iteration + 1
@@ -239,7 +246,7 @@ def worker(
                 if shared_state_module.shared_state_instance.interrupt_flag.is_set():
                     logger.info(f"Task {task_id}: InterruptedError raised in callback_diffusion_step.")
                     # Send a more specific message to the UI.
-                    output_queue_ref.push(('stopping_process', (task_id, "during sampling")))
+                    output_queue_ref.push((UIMessage.STOPPING_PROCESS, {'task_id': task_id, 'context': 'during sampling'}))
                     raise InterruptedError("Stop signal received during sampling.")
                 current_diffusion_step = d["i"] + 1
                 preview_latent = d["denoised"]
@@ -274,21 +281,17 @@ def worker(
                     minutes = int(eta_seconds_segment // 60)
                     seconds = int(eta_seconds_segment % 60)
                     eta_display = f"ETA: {minutes}m {seconds}s"
-
-                output_queue_ref.push(
-                    (
-                        "progress",
-                        (
-                            task_id,
-                            preview_img_np,
-                            desc,
-                            make_progress_bar_html(percentage, hint),
-                            current_loop_segment_number,
-                            preview_frequency,
-                            preview_specified_segments,
-                        ),
-                    )
-                )
+                
+                output_queue_ref.push((UIMessage.PROGRESS, {
+                    "task_id": task_id,
+                    "preview_np": preview_img_np,
+                    "description": desc,
+                    "html": make_progress_bar_html(percentage, hint),
+                    "current_segment": current_loop_segment_number,
+                    "preview_frequency": preview_frequency,
+                    "preview_specified_segments": preview_specified_segments,
+                    "eta_display": eta_display
+                }))
 
             current_segment_gs_to_use = initial_gs_from_ui
             # Only apply a schedule if one is selected and there's more than one segment.
@@ -367,23 +370,16 @@ def worker(
                 load_model_as_complete(vae, target_device=gpu)
 
             # Let the UI know that the expensive VAE decoding is happening
-            output_queue_ref.push(
-                (
-                    "progress",
-                    (
-                        task_id,
-                        None,  # No image preview here
-                        f"Segment {current_loop_segment_number}/{total_latent_sections}: Decoding frames...",
-                        make_progress_bar_html(
-                            50, "VAE Decode"
-                        ),
-                        # Add missing values to match the 7-item tuple expected by the UI listener.
-                        current_loop_segment_number,
-                        preview_frequency,
-                        preview_specified_segments,
-                    ),
-                )
-            )
+            output_queue_ref.push((UIMessage.PROGRESS, {
+                "task_id": task_id,
+                "preview_np": None,
+                "description": f"Segment {current_loop_segment_number}/{total_latent_sections}: Decoding frames...",
+                "html": make_progress_bar_html(50, "VAE Decode"),
+                "current_segment": current_loop_segment_number,
+                "preview_frequency": preview_frequency,
+                "preview_specified_segments": preview_specified_segments,
+                "eta_display": "" # No ETA for VAE decode
+            }))
 
             real_history_latents = history_latents[
                 :, :, :total_generated_latent_frames, :, :
@@ -441,19 +437,22 @@ def worker(
         logger.info(f"Task {task_id}: Caught InterruptedError or KeyboardInterrupt.")
         if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
             logger.info(f"Worker task {task_id} caught stop signal: {e}. stop_requested_flag was set.")
-            output_queue_ref.push(('aborted', None))
+            output_queue_ref.push((UIMessage.ABORTED, {'task_id': task_id}))
             success = False
             is_paused = False
         else:
             logger.info(f"Worker task {task_id} caught explicit pause signal: {e}. pause_request_flag was set.")
-            # Send the latent state for pause/resume
-            output_queue_ref.push(('paused_with_state', (task_id, history_latents_for_abort, graceful_abort_preview_path)))
+            output_queue_ref.push((UIMessage.PAUSED_WITH_STATE, {
+                'task_id': task_id,
+                'latents': history_latents_for_pause,
+                'preview_path': graceful_pause_preview_path
+            }))
             success = False
             is_paused = True
-            final_output_filename = graceful_abort_preview_path
+            final_output_filename = graceful_pause_preview_path
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
-        output_queue_ref.push(('error', (task_id, str(e))))
+        output_queue_ref.push((UIMessage.ERROR, {'task_id': task_id, 'message': str(e)}))
         success = False
     finally:
         # Always perform cleanup.
@@ -463,4 +462,8 @@ def worker(
         # Only send the 'end' signal if the task wasn't paused.
         # A paused task is handled by the ProcessingAgent and is not considered "ended".
         if not is_paused:
-            output_queue_ref.push(('end', (task_id, success, final_output_filename)))
+            output_queue_ref.push((UIMessage.END, {
+                'task_id': task_id,
+                'success': success,
+                'final_path': final_output_filename
+            }))

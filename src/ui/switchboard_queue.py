@@ -44,24 +44,10 @@ def wire_events(components: dict):
     load_queue_output_keys = [K.QUEUE_DF] + event_handler_helpers.BUTTON_KEYS
     load_queue_output_components = [components[k] for k in load_queue_output_keys]
 
-    # Outputs for the queue processing generator (this is a special case, not using the dict pattern)
-    # This list must exactly match the number and order of items yielded by queue_processing.process_task_queue_and_listen.
-    # The previous list had 12 items, but the generator yields 9, causing a ValueError.
-    process_q_outputs = [
-        components[K.APP_STATE], # 0
-        components[K.QUEUE_DF],
-        components[K.LAST_FINISHED_VIDEO],
-        components[K.CURRENT_TASK_PREVIEW_IMAGE],
-
-        # Removed from alpha 0.2 scope - **TODO: can this be refactored out of this hard pipeline implementation?**
-        components[K.CURRENT_TASK_PROGRESS_DESCRIPTION],
-        components[K.CURRENT_TASK_PROGRESS_BAR],
-        # components[K.SEGMENT_ETA_DISPLAY], # NEW: 6
-
-        components[K.PROCESS_QUEUE_BUTTON],
-        components[K.CREATE_PREVIEW_BUTTON],
-        components[K.CLEAR_QUEUE_BUTTON],
-    ]
+    # Outputs for the queue processing generator.
+    # This list is built from the single source of truth in shared_state_module
+    # to ensure the order and number of components always match the generator's yields.
+    process_q_outputs = [components[k] for k in shared_state_module.QUEUE_PROCESSING_OUTPUT_KEYS]
 
     # --- Wire Events ---
 

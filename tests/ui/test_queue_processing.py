@@ -1,8 +1,8 @@
 import pytest
 import gradio as gr
 from unittest.mock import patch, MagicMock
-from src.ui.queue_processing import process_task_queue_and_listen
 from src.ui.enums import ComponentKey as K
+from src.ui import queue_processing, shared_state
 import queue
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def mock_app_state():
 @pytest.fixture
 def mock_ui_update_queue():
     """Fixture for mocking ui_update_queue."""
-    with patch('src.ui.queue_processing.ui_update_queue') as mock_queue:
+    with patch('src.ui.queue_processing.ui_update_queue', new_callable=MagicMock) as mock_queue:
         yield mock_queue
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def mock_queue_manager_instance():
 @pytest.fixture
 def mock_shared_state_module():
     """Fixture for mocking shared_state_module."""
-    with patch('src.ui.queue_processing.shared_state_module') as mock_shared_state:
+    with patch('src.ui.queue_processing.shared_state_module', new_callable=MagicMock) as mock_shared_state:
         mock_shared_state.shared_state_instance.stop_requested_flag = MagicMock()
         mock_shared_state.shared_state_instance.stop_requested_flag.is_set.return_value = False
         mock_shared_state.shared_state_instance.interrupt_flag = MagicMock()
@@ -36,21 +36,31 @@ def mock_shared_state_module():
         mock_shared_state.shared_state_instance.pause_request_flag = MagicMock()
         yield mock_shared_state
 
-def test_process_task_queue_and_listen_file_flag(mock_app_state, mock_ui_update_queue, mock_queue_manager_instance, mock_shared_state_module):
-    """Test that app_state is updated when 'file' flag is received."""
+def get_update_for_key(updates_tuple, key):
+    """Helper to find a specific component's update in the yielded tuple."""
+    return updates_tuple[shared_state.QUEUE_PROCESSING_OUTPUT_KEYS.index(key)]
+
+@pytest.mark.parametrize("file_payload", [
+    # New dict format
+    {"task_id": 1, "path": "/path/to/new_video.mp4"},
+    # Old tuple format for backward compatibility
+    (1, "/path/to/new_video.mp4", None)
+])
+def test_process_task_queue_and_listen_file_flag(file_payload, mock_app_state, mock_ui_update_queue, mock_queue_manager_instance, mock_shared_state_module):
+    """Test that app_state is updated when 'file' flag is received, supporting both dict and tuple."""
     mock_ui_update_queue.get.side_effect = [
-        ("file", (1, "/path/to/new_video.mp4", None)),
+        ("file", file_payload),
         queue.Empty, # First Empty
         queue.Empty  # Second Empty to trigger break
     ]
     mock_queue_manager_instance.get_state.return_value = {"processing": True} # Keep processing to enter loop
 
-    generator = process_task_queue_and_listen(mock_app_state)
-
+    generator = queue_processing.process_task_queue_and_listen(mock_app_state, None, None, None)
     # First yield for "file" flag
     updates = next(generator)
-    assert updates[0]['value']["last_completed_video_path"] == "/path/to/new_video.mp4"
-    assert updates[2]['value'] == "/path/to/new_video.mp4" # LAST_FINISHED_VIDEO
+    assert get_update_for_key(updates, K.APP_STATE).value["last_completed_video_path"] == "/path/to/new_video.mp4"
+    assert get_update_for_key(updates, K.LAST_FINISHED_VIDEO).value == "/path/to/new_video.mp4"
+    assert get_update_for_key(updates, K.LAST_FINISHED_VIDEO_FULL_WIDTH).value == "/path/to/new_video.mp4"
 
     # Simulate end of processing
     mock_queue_manager_instance.get_state.return_value = {"processing": False}
@@ -66,12 +76,12 @@ def test_process_task_queue_and_listen_task_finished_flag(mock_app_state, mock_u
     ]
     mock_queue_manager_instance.get_state.return_value = {"processing": True}
 
-    generator = process_task_queue_and_listen(mock_app_state)
+    generator = queue_processing.process_task_queue_and_listen(mock_app_state, None, None, None)
 
     # First yield for "task_finished" flag
     updates = next(generator)
-    assert updates[0]['value']["last_completed_video_path"] == "/path/to/final_video.mp4"
-    assert updates[2]['value'] == "/path/to/final_video.mp4" # LAST_FINISHED_VIDEO
+    assert get_update_for_key(updates, K.APP_STATE).value["last_completed_video_path"] == "/path/to/final_video.mp4"
+    assert get_update_for_key(updates, K.LAST_FINISHED_VIDEO).value == "/path/to/final_video.mp4"
 
     # Simulate end of processing
     mock_queue_manager_instance.get_state.return_value = {"processing": False}
@@ -87,21 +97,15 @@ def test_process_task_queue_and_listen_processing_started_flag(mock_app_state, m
     ]
     mock_queue_manager_instance.get_state.return_value = {"processing": True}
 
-    generator = process_task_queue_and_listen(mock_app_state)
+    generator = queue_processing.process_task_queue_and_listen(mock_app_state, None, None, None)
     updates = next(generator)
 
-    assert isinstance(updates[0], dict) # APP_STATE
-    assert updates[0]['__type__'] == 'update' # Ensure it's a Gradio update dict
-    assert isinstance(updates[1], dict) # QUEUE_DF
-    assert updates[1]['__type__'] == 'update'
-    assert isinstance(updates[2], dict) # LAST_FINISHED_VIDEO
-    assert updates[2]['__type__'] == 'update'
-    assert updates[3]['visible'] is True # CURRENT_TASK_PREVIEW_IMAGE
-    assert updates[4]['value'] == "Queue processing started..." # Progress description
-    assert updates[5]['visible'] is True # Progress bar
-    assert updates[6]['value'] == "⏹️ Stop Processing" # PROCESS_QUEUE_BUTTON
-    assert updates[7]['interactive'] is True # CREATE_PREVIEW_BUTTON
-    assert updates[8]['interactive'] is False # CLEAR_QUEUE_BUTTON
+    assert get_update_for_key(updates, K.CURRENT_TASK_PREVIEW_IMAGE).visible is True
+    assert get_update_for_key(updates, K.CURRENT_TASK_PROGRESS_DESCRIPTION).value == "Queue processing started..."
+    assert get_update_for_key(updates, K.CURRENT_TASK_PROGRESS_BAR).visible is True
+    assert get_update_for_key(updates, K.PROCESS_QUEUE_BUTTON).value == "⏹️ Stop Processing"
+    assert get_update_for_key(updates, K.CREATE_PREVIEW_BUTTON).interactive is True
+    assert get_update_for_key(updates, K.CLEAR_QUEUE_BUTTON).interactive is False
 
     # Simulate end of processing
     mock_queue_manager_instance.get_state.return_value = {"processing": False}
@@ -110,25 +114,29 @@ def test_process_task_queue_and_listen_processing_started_flag(mock_app_state, m
 
 def test_process_task_queue_and_listen_progress_flag(mock_app_state, mock_ui_update_queue, mock_queue_manager_instance, mock_shared_state_module):
     """Test yielded updates for 'progress' flag."""
+    progress_data = {
+        "preview_np": "mock_preview_np",
+        "description": "mock_desc",
+        "html": "mock_html",
+        "current_segment": 1,
+        "preview_frequency": 5,
+        "preview_specified_segments": "1,3,5",
+        "eta_display": "ETA: 1m 30s"
+    }
     mock_ui_update_queue.get.side_effect = [
-        ("progress", (1, "mock_preview_np", "mock_desc", "mock_html")),
+        ("progress", progress_data),
         queue.Empty, # First Empty
         queue.Empty  # Second Empty to trigger break
     ]
     mock_queue_manager_instance.get_state.return_value = {"processing": True}
 
-    generator = process_task_queue_and_listen(mock_app_state)
+    generator = queue_processing.process_task_queue_and_listen(mock_app_state, None, None, None)
     updates = next(generator)
 
-    assert isinstance(updates[0], dict) # APP_STATE
-    assert updates[0]['__type__'] == 'update' # Ensure it's a Gradio update dict
-    assert isinstance(updates[1], dict) # QUEUE_DF
-    assert updates[1]['__type__'] == 'update'
-    assert isinstance(updates[2], dict) # LAST_FINISHED_VIDEO
-    assert updates[2]['__type__'] == 'update'
-    assert updates[3]['value'] == "mock_preview_np" # CURRENT_TASK_PREVIEW_IMAGE
-    assert updates[4]['value'] == "mock_desc" # Progress description
-    assert updates[5]['value'] == "mock_html" # Progress bar
+    assert get_update_for_key(updates, K.CURRENT_TASK_PREVIEW_IMAGE).value == "mock_preview_np"
+    assert get_update_for_key(updates, K.CURRENT_TASK_PROGRESS_DESCRIPTION).value == "mock_desc"
+    assert get_update_for_key(updates, K.CURRENT_TASK_PROGRESS_BAR).value == "mock_html"
+    assert get_update_for_key(updates, K.SEGMENT_ETA_DISPLAY).value == "ETA: 1m 30s"
 
     # Simulate end of processing
     mock_queue_manager_instance.get_state.return_value = {"processing": False}
@@ -143,7 +151,7 @@ def test_process_task_queue_and_listen_queue_finished_flag(mock_app_state, mock_
     ]
     mock_queue_manager_instance.get_state.return_value = {"processing": True}
 
-    generator = process_task_queue_and_listen(mock_app_state)
+    generator = queue_processing.process_task_queue_and_listen(mock_app_state, None, None, None)
 
     # Consume the "queue_finished" yield
     next(generator)

@@ -1,7 +1,7 @@
 import gradio as gr
 import logging
 
-from .enums import ComponentKey as K
+from .enums import ComponentKey as K, TaskStatus
 from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 
@@ -155,7 +155,7 @@ def update_button_states(input_image_pil):
         'is_editing_processing_task': is_editing_processing_task,
         'has_image': input_image_pil is not None,
         'queue_has_tasks': bool(queue_state.get("queue", [])),
-        'has_pending_tasks': any(task.get("status", "pending") == "pending" for task in queue_state.get("queue", [])),
+        'has_pending_tasks': any(task.get("status", TaskStatus.PENDING.value) == TaskStatus.PENDING.value for task in queue_state.get("queue", [])),
         'preview_requested': shared_state_module.shared_state_instance.preview_request_flag.is_set(),
     }
 

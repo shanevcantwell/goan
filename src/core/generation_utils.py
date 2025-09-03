@@ -11,6 +11,7 @@ import numpy as np
 from typing import Optional, Tuple, Set, Dict
 
 from ui.shared_state import shared_state_instance
+from ui.enums import UIMessage
 from diffusers_helper.memory import load_model_as_complete, unload_complete_models, gpu
 from diffusers_helper.hunyuan import vae_decode
 from diffusers_helper.utils import save_bcthw_as_mp4, generate_timestamp
@@ -42,13 +43,13 @@ def initialize_job(
     job_id = f"{generate_timestamp()}_task{task_id}"
     output_queue_ref.push(
         (
-            "progress",
-            (
-                task_id,
-                None,
-                f"Total Segments: {total_latent_sections}",
-                make_progress_bar_html(0, "Starting ..."),
-            ),
+            UIMessage.PROGRESS,
+            {
+                "task_id": task_id,
+                "preview_np": None,
+                "description": f"Total Segments: {total_latent_sections}",
+                "html": make_progress_bar_html(0, "Starting ..."),
+            },
         )
     )
     return total_latent_sections, job_id
@@ -105,13 +106,22 @@ def handle_segment_saving(
         if is_last_section:
             save_hint = "Saving Final Video..."
 
-        output_queue_ref.push(("progress", (task_id, None, f"Segment {current_loop_segment_number}/{total_latent_sections}: {save_hint}", make_progress_bar_html(100, save_hint))))
+        output_queue_ref.push((UIMessage.PROGRESS, {
+            "task_id": task_id,
+            "preview_np": None,
+            "description": f"Segment {current_loop_segment_number}/{total_latent_sections}: {save_hint}",
+            "html": make_progress_bar_html(100, save_hint)
+        }))
 
         segment_mp4_filename = os.path.join(outputs_folder, f"{job_id}_segment_{current_loop_segment_number}_frames_{current_video_frame_count}.mp4")
         save_bcthw_as_mp4(history_pixels, segment_mp4_filename, fps=fps, crf=mp4_crf)
         
         logger.info(f"Task {task_id}: SAVED MP4 for segment {current_loop_segment_number} to {segment_mp4_filename}. Total video frames: {current_video_frame_count}")
-        output_queue_ref.push(("file", (task_id, segment_mp4_filename, f"Segment {current_loop_segment_number} MP4 saved ({current_video_frame_count} frames)")))
+        output_queue_ref.push((UIMessage.FILE, {
+            "task_id": task_id,
+            "path": segment_mp4_filename,
+            "message": f"Segment {current_loop_segment_number} MP4 saved ({current_video_frame_count} frames)"
+        }))
         return segment_mp4_filename
     else:
         # This part of the logic remains unchanged.
@@ -205,7 +215,11 @@ def _save_final_preview(history_latents, vae, job_id, task_id, outputs_folder, c
         raise InterruptedError("Hard abort during final save.")
 
     logger.info(f"Task {task_id}: Decoding final latents for graceful abort preview...")
-    output_queue_ref.push(('progress', (task_id, None, "Decoding final latents for preview...", make_progress_bar_html(100, "Decoding..."))))
+    output_queue_ref.push((UIMessage.PROGRESS, {
+        "task_id": task_id,
+        "description": "Decoding final latents for preview...",
+        "html": make_progress_bar_html(100, "Decoding...")
+    }))
 
     if not high_vram:
         load_model_as_complete(vae, target_device=gpu)
@@ -222,7 +236,11 @@ def _save_final_preview(history_latents, vae, job_id, task_id, outputs_folder, c
         raise InterruptedError("Hard abort during final save.")
 
     logger.info(f"Task {task_id}: Writing final MP4 preview...")
-    output_queue_ref.push(('progress', (task_id, None, "Writing final MP4 preview...", make_progress_bar_html(100, "Writing MP4..."))))
+    output_queue_ref.push((UIMessage.PROGRESS, {
+        "task_id": task_id,
+        "description": "Writing final MP4 preview...",
+        "html": make_progress_bar_html(100, "Writing MP4...")
+    }))
 
     final_video_path = os.path.join(outputs_folder, f'{job_id}_aborted_preview.mp4')
     save_bcthw_as_mp4(pixels, final_video_path, fps=fps, crf=crf)
@@ -233,7 +251,7 @@ def _save_final_preview(history_latents, vae, job_id, task_id, outputs_folder, c
 def _signal_abort_to_ui(output_queue_ref, task_id, video_path):
     """Helper to send a consistently formatted abort message to the UI queue."""
     logger.info(f"Task {task_id}: Signaling abort to UI, providing video path: {video_path}")
-    output_queue_ref.push(('aborted', (task_id, video_path)))
+    output_queue_ref.push((UIMessage.ABORTED, {'task_id': task_id, 'path': video_path}))
     
 def _format_eta(seconds: float) -> str:
     """Formats seconds into a human-readable ETA string."""

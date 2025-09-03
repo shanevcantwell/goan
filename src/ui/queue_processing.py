@@ -8,10 +8,19 @@ from .queue_manager import queue_manager_instance
 from . import shared_state as shared_state_module
 from . import queue_helpers
 from .agents import ProcessingAgent, ui_update_queue
-from .enums import ComponentKey as K
+from .enums import ComponentKey as K, UIMessage
 
 
 logger = logging.getLogger(__name__)
+
+def create_update_tuple(updates: dict) -> tuple:
+    """
+    Converts a dictionary of {ComponentKey: gr.update} into a tuple
+    ordered according to the single source of truth, QUEUE_PROCESSING_OUTPUT_KEYS.
+    Any component key not in the input dictionary will get a no-op gr.update().
+    """
+    return tuple(updates.get(key, gr.update()) for key in shared_state_module.QUEUE_PROCESSING_OUTPUT_KEYS)
+
 
 def process_task_queue_and_listen(app_state: dict, *lora_control_values):
     """Starts the ProcessingAgent, listens for UI updates, and handles stop requests."""
@@ -28,10 +37,11 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
         # 'start' click) is still running and will receive the final "queue_finished"
         # signal from the agent to terminate properly. Starting a second listener
         # loop here would cause conflicts.
-        # We yield one final time to update the UI description before exiting.
-        yield (gr.update(), gr.update(), gr.update(), gr.update(),
-               "Stop signal sent. Waiting for current task to halt...",
-               gr.update(), gr.update(), gr.update(), gr.update())
+        # We yield an update to the UI description before exiting.
+        updates = {
+            K.CURRENT_TASK_PROGRESS_DESCRIPTION: "Stop signal sent. Waiting for current task to halt..."
+        }
+        yield create_update_tuple(updates)
         return
     else:
         # If not processing, this is a "start" request.
@@ -54,29 +64,43 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
             # Block until an update is available from the agent's UI queue.
             flag, data = ui_update_queue.get(timeout=1.0)
 
-            if flag == "stopping_process":
+            if flag == UIMessage.STOPPING_PROCESS:
                 # The agent has confirmed it received the stop request.
                 # Yield feedback to the user. The button states are handled by the
-                # .then() call in the switchboard.
-                yield (
-                    gr.update(), gr.update(), gr.update(), gr.update(),
-                    "Stop signal received. Waiting for current task to halt...",
-                    gr.update(), gr.update(), gr.update(), gr.update()
-                )
-            elif flag == "processing_started":
+                # final yield after the loop.
+                updates = {
+                    K.CURRENT_TASK_PROGRESS_DESCRIPTION: "Stop signal received. Waiting for current task to halt..."
+                }
+                yield create_update_tuple(updates)
+
+            elif flag == UIMessage.PROCESSING_STARTED:
                 # This is the first signal from the agent that it has started.
                 # Update the UI to the "processing" state.
-                yield (  # The first output (APP_STATE) is gr.update() as we don't modify it here.
-                    gr.update(), gr.update(), gr.update(), gr.update(visible=True),
-                    gr.update(value="Queue processing started..."),  # Progress description
-                    gr.update(value=None, visible=True),  # Progress bar
-                    gr.update(value="⏹️ Stop Processing", interactive=True, variant="stop"),  # PROCESS_QUEUE_BUTTON
-                    gr.update(interactive=True),  # CREATE_PREVIEW_BUTTON
-                    gr.update(interactive=False)  # CLEAR_QUEUE_BUTTON
-                )
-            elif flag == "progress":
-                # Unpack data: task_id, preview_np, desc, html, eta_display
-                _, preview_np, desc, html, current_segment, preview_frequency, preview_specified_segments_str = data  # TODO: Expect 7 but get 4
+                updates = {
+                    K.CURRENT_TASK_PREVIEW_IMAGE: gr.update(visible=True),
+                    K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value="Queue processing started..."),
+                    K.CURRENT_TASK_PROGRESS_BAR: gr.update(value=None, visible=True),
+                    K.PROCESS_QUEUE_BUTTON: gr.update(value="⏹️ Stop Processing", interactive=True, variant="stop"),
+                    K.CREATE_PREVIEW_BUTTON: gr.update(interactive=True),
+                    K.CLEAR_QUEUE_BUTTON: gr.update(interactive=False)
+                }
+                yield create_update_tuple(updates)
+
+            elif flag == UIMessage.PROGRESS:
+                # Worker messages ('progress') now send a dictionary payload.
+                if not isinstance(data, dict):
+                    logger.warning(f"Received 'progress' message with unexpected data type: {type(data)}. Expected dict. Skipping update.")
+                    continue
+
+                preview_np = data.get("preview_np")
+                desc = data.get("description", "")
+                html = data.get("html", "")
+                current_segment = data.get("current_segment", 0)
+                preview_frequency = data.get("preview_frequency", 0)
+                # The worker sends 'preview_specified_segments', which can be the raw value.
+                # The UI logic expects a string.
+                preview_specified_segments_str = str(data.get("preview_specified_segments", ""))
+                eta_display = data.get("eta_display", "")
 
                 # FIX: Re-evaluate the preview button's state with every progress update.
                 # This ensures that after a manual preview request is consumed by the worker
@@ -104,66 +128,74 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
                     variant="secondary" if preview_requested else "primary"
                 )
 
-                yield (
-                    gr.update(),  # APP_STATE (index 0)
-                    gr.update(),  # QUEUE_DF (index 1)
-                    gr.update(),  # LAST_FINISHED_VIDEO (index 2)
-                    gr.update(value=preview_np),  # CURRENT_TASK_PREVIEW_IMAGE (index 3)
-                    gr.update(value=desc),  # CURRENT_TASK_PROGRESS_DESCRIPTION (index 4)
-                    gr.update(value=html),  # CURRENT_TASK_PROGRESS_BAR (index 5)
-                    gr.update(),  # PROCESS_QUEUE_BUTTON (index 6)
-                    preview_button_update,  # CREATE_PREVIEW_BUTTON (index 7)
-                    gr.update()  # CLEAR_QUEUE_BUTTON (index 8)
-                )
-            elif flag == "file":
-                # Unpack data: task_id, new_video_path, _
-                _, new_video_path, _ = data  # type: ignore
+                updates = {
+                    K.CURRENT_TASK_PREVIEW_IMAGE: gr.update(value=preview_np),
+                    K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value=desc),
+                    K.CURRENT_TASK_PROGRESS_BAR: gr.update(value=html),
+                    K.SEGMENT_ETA_DISPLAY: gr.update(value=eta_display),
+                    K.CREATE_PREVIEW_BUTTON: preview_button_update,
+                }
+                yield create_update_tuple(updates)
+
+            elif flag == UIMessage.FILE:
+                # The 'file' message payload is a tuple: (task_id, path, message)
+                if not isinstance(data, tuple) or len(data) < 2:
+                    logger.warning(f"Received 'file' message with malformed data: {data}")
+                    continue
+
+                new_video_path = data[1]
+                if not new_video_path:
+                    logger.warning(f"Received 'file' message but could not extract a path from data: {data}")
+                    continue
+
                 app_state["last_completed_video_path"] = new_video_path
-                yield (gr.update(value=app_state), gr.update(), gr.update(value=new_video_path), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
-            elif flag == "task_starting":
+                updates = {
+                    K.APP_STATE: gr.update(value=app_state),
+                    K.LAST_FINISHED_VIDEO: gr.update(value=new_video_path),
+                    K.LAST_FINISHED_VIDEO_FULL_WIDTH: gr.update(value=new_video_path),
+                }
+                yield create_update_tuple(updates)
+
+            elif flag == UIMessage.TASK_STARTING:
                 task = data  # type: ignore
-                # This yield was missing the explicit `visible=True` for the progress bar.
-                # By adding it, we ensure the bar remains visible when the task starts.
-                yield (
-                    gr.update(),                                  # APP_STATE
-                    queue_helpers.update_queue_df_display(),      # QUEUE_DF
-                    gr.update(),                                  # LAST_FINISHED_VIDEO
-                    gr.update(),                                  # CURRENT_TASK_PREVIEW_IMAGE
-                    gr.update(value=f"Processing Task {task['id']}..."),            # CURRENT_TASK_PROGRESS_DESCRIPTION
-                    gr.update(value=None, visible=True),          # CURRENT_TASK_PROGRESS_BAR
-                    gr.update(),                                  # PROCESS_QUEUE_BUTTON
-                    gr.update(),                                  # CREATE_PREVIEW_BUTTON
-                    gr.update()                                   # CLEAR_QUEUE_BUTTON
-                )
-            elif flag == "task_finished":
-                status = data.get('status')
-                task_id = data.get('id')
-                final_path = data.get('final_path')
+                updates = {
+                    K.QUEUE_DF: queue_helpers.update_queue_df_display(),
+                    K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value=f"Processing Task {task['id']}..."),
+                    K.CURRENT_TASK_PROGRESS_BAR: gr.update(value=None, visible=True),
+                }
+                yield create_update_tuple(updates)
 
-                final_message = f"Task {task_id} {status}."
-                if status == 'aborted':
-                    final_message = f"Task {task_id} stopped by user."
+            elif flag == UIMessage.TASK_FINISHED:
+                # The 'task_finished' message payload is a dictionary.
+                if isinstance(data, dict):
+                    status = data.get('status')
+                    task_id = data.get('id')
+                    final_path = data.get('final_path')
 
-                # If a final path was provided, update the video player one last time.
-                # Otherwise, send a no-op update to preserve its current state.
-                video_update = gr.update(value=final_path) if final_path else gr.update()
-                if final_path:
-                    app_state["last_completed_video_path"] = final_path
+                    final_message = f"Task {task_id} {status}."
+                    if status == 'aborted':
+                        final_message = f"Task {task_id} stopped by user."
 
-                yield (
-                    gr.update(value=app_state),
-                    queue_helpers.update_queue_df_display(),
-                    video_update,
-                    gr.update(),
-                    gr.update(value=final_message), # Progress description
-                    gr.update(value=None, visible=False), # Clear progress bar
-                    gr.update(),
-                    gr.update(),
-                    gr.update()
-                )
-            elif flag == "info":
+                    # If a final path was provided, update the video player one last time.
+                    # Otherwise, send a no-op update to preserve its current state.
+                    video_update = gr.update(value=final_path) if final_path else gr.update()
+                    if final_path:
+                        app_state["last_completed_video_path"] = final_path
+
+                    updates = {
+                        K.APP_STATE: gr.update(value=app_state),
+                        K.QUEUE_DF: queue_helpers.update_queue_df_display(),
+                        K.LAST_FINISHED_VIDEO: video_update,
+                        K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value=final_message),
+                        K.CURRENT_TASK_PROGRESS_BAR: gr.update(value=None, visible=False),
+                    }
+                    yield create_update_tuple(updates)
+                else:
+                    logger.warning(f"Received 'task_finished' message with malformed data: {data}")
+
+            elif flag == UIMessage.INFO:
                 gr.Info(data)
-            elif flag == "queue_finished":
+            elif flag == UIMessage.QUEUE_FINISHED:
                 # The agent has signaled the end of all processing.
                 logger.info("UI listener received 'queue_finished' signal. Exiting loop.")
                 break
@@ -179,14 +211,9 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
     # The .then() call in the switchboard will handle the final button state update.
     # We just need to yield one last time to ensure the final queue state is displayed.
     logger.info("UI listener loop finished. Yielding final queue display.")
-    yield (
-        gr.update(),
-        queue_helpers.update_queue_df_display(),
-        gr.update(), # LAST_FINISHED_VIDEO
-        gr.update(), # CURRENT_TASK_PREVIEW_IMAGE
-        gr.update(value=""),  # CURRENT_TASK_PROGRESS_DESCRIPTION
-        gr.update(value=None, visible=False), # CURRENT_TASK_PROGRESS_BAR
-        gr.update(), # PROCESS_QUEUE_BUTTON
-        gr.update(), # CREATE_PREVIEW_BUTTON
-        gr.update()  # CLEAR_QUEUE_BUTTON
-    )
+    final_updates = {
+        K.QUEUE_DF: queue_helpers.update_queue_df_display(),
+        K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value=""),
+        K.CURRENT_TASK_PROGRESS_BAR: gr.update(value=None, visible=False),
+    }
+    yield create_update_tuple(final_updates)

@@ -1,6 +1,37 @@
 # ui/enums.py
 from enum import StrEnum, auto
 
+class TaskStatus(StrEnum):
+    """Enumeration for the status of a task in the queue."""
+    PENDING = auto()
+    PROCESSING = auto()
+    COMPLETED = auto()
+    FAILED = auto()
+    ABORTED = auto()
+    PAUSED = auto()
+
+class UIMessage(StrEnum):
+    """Enumeration for messages passed from the backend to the UI listener."""
+    # --- Agent to UI Listener ---
+    PROCESSING_STARTED = auto()
+    STOPPING_PROCESS = auto()
+    TASK_STARTING = auto()
+    TASK_FINISHED = auto()
+    QUEUE_FINISHED = auto()
+    INFO = auto()
+
+    # --- Worker to Agent (and forwarded to UI Listener) ---
+    PROGRESS = auto()
+    FILE = auto()
+
+    # --- Worker to Agent (Terminal states for a task) ---
+    END = auto()
+    CRASH = auto()
+    ERROR = auto()
+    ABORTED = auto()
+    PAUSED_WITH_STATE = auto()
+
+
 class ComponentKey(StrEnum):
     """
     Enumeration of all Gradio component keys.
