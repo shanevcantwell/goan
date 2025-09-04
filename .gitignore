@@ -208,5 +208,3 @@ settings.json
 goan_settings.json
 node_modules/*
 package*.json
-
-client/
