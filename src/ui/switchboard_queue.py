@@ -64,16 +64,27 @@ def wire_events(components: dict):
     ))
 
     # 2. Process Queue (Generator)
-    (components[K.PROCESS_QUEUE_BUTTON].click(
-        fn=event_handlers.optimistic_process_button_update,
-        inputs=None,
-        outputs=[components[K.PROCESS_QUEUE_BUTTON]]
-    ).then(
-        fn=queue_processing.process_task_queue_and_listen,
-        inputs=[components[K.APP_STATE]] + lora_ui_controls, # Add APP_STATE to inputs
-        outputs=process_q_outputs
-    ))
+    # This is a conditional event. It checks the queue's processing state.
+    # If not processing, it starts the queue. If processing, it stops it.
+    def process_or_stop(app_state, *lora_vals):
+        if not queue_manager_instance.get_state().get("processing", False):
+            # This is a START request. We need to trigger the generator.
+            # We return a special value to indicate this to the .then() block.
+            # The actual generator call happens in the .then() part.
+            return "start"
+        else:
+            # This is a STOP request. Call the dedicated stop handler.
+            return event_handlers.handle_stop_queue_request()
 
+    (components[K.PROCESS_QUEUE_BUTTON].click(
+        fn=queue_processing.process_task_queue_and_listen,
+        inputs=[components[K.APP_STATE]] + lora_ui_controls,
+        outputs=process_q_outputs
+    ).then(
+        fn=event_handlers.handle_stop_queue_request,
+        inputs=None,
+        outputs=[components[K.CURRENT_TASK_PROGRESS_DESCRIPTION]]
+    ))
     # 3. Create Manual Preview
     (components[K.CREATE_PREVIEW_BUTTON].click(
         fn=event_handlers.toggle_manual_preview_action,

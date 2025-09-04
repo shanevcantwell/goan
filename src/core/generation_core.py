@@ -202,6 +202,11 @@ def worker(
             latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
 
         for latent_padding_iteration, latent_padding in enumerate(latent_paddings):
+            # Add a check for the queue-level stop flag here.
+            if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
+                logger.info(f"Task {task_id}: Stop Queue signal detected before segment {latent_padding_iteration + 1}.")
+                raise InterruptedError("Stop Queue signal received between segments.")
+
             # This check for the main interrupt flag makes the Stop button more responsive,
             # allowing it to halt processing between segments.
             if shared_state_module.shared_state_instance.interrupt_flag.is_set():
@@ -435,11 +440,10 @@ def worker(
 
     except (InterruptedError, KeyboardInterrupt) as e:
         logger.info(f"Task {task_id}: Caught InterruptedError or KeyboardInterrupt.")
+        # If a full stop was requested, it's an abort. Otherwise, it's a pause.
         if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-            logger.info(f"Worker task {task_id} caught stop signal: {e}. stop_requested_flag was set.")
-            output_queue_ref.push((UIMessage.ABORTED, {'task_id': task_id}))
-            success = False
-            is_paused = False
+            logger.info(f"Worker task {task_id} caught stop signal: {e}.")
+            output_queue_ref.push(UIMessage.ABORTED, {'task_id': task_id})
         else:
             logger.info(f"Worker task {task_id} caught explicit pause signal: {e}. pause_request_flag was set.")
             output_queue_ref.push((UIMessage.PAUSED_WITH_STATE, {
@@ -447,9 +451,9 @@ def worker(
                 'latents': history_latents_for_pause,
                 'preview_path': graceful_pause_preview_path
             }))
-            success = False
             is_paused = True
             final_output_filename = graceful_pause_preview_path
+        success = False
     except Exception as e:
         logger.error(f"Error in worker task {task_id}: {e}", exc_info=True)
         output_queue_ref.push((UIMessage.ERROR, {'task_id': task_id, 'message': str(e)}))
@@ -462,8 +466,8 @@ def worker(
         # Only send the 'end' signal if the task wasn't paused.
         # A paused task is handled by the ProcessingAgent and is not considered "ended".
         if not is_paused:
-            output_queue_ref.push((UIMessage.END, {
+            output_queue_ref.push(UIMessage.END, {
                 'task_id': task_id,
                 'success': success,
                 'final_path': final_output_filename
-            }))
+            })

@@ -157,20 +157,28 @@ def prepare_image_for_download(pil_image, lora_name, lora_weight, lora_targets, 
         image_copy.save(tmp_file.name, "PNG", pnginfo=pnginfo_obj)
         gr.Info("Image with current settings prepared for download.")
         return gr.update(value=tmp_file.name)
-
-def optimistic_process_button_update():
+    
+def handle_stop_queue_request():
     """
-    Provides immediate feedback on the Process/Stop button.
-    Checks the current processing state to decide whether to show
-    "Starting..." or "Stopping...". This is an optimistic UI update.
+    Handles the user request to stop the entire processing queue.
+    This is a dedicated handler for the "Stop Processing" button click.
     """
-    if queue_manager_instance.get_state().get("processing", False):
-        # We are currently processing, so this click is a STOP request.
-        # The stop_requested_flag is set in the main handler. We just update the UI.
-        return gr.update(interactive=False, value="Stopping...", variant="stop")
-    else:
-        # We are not processing, so this click is a START request.
-        return gr.update(interactive=False, value="Starting...", variant="secondary")
+    from .enums import UIMessage
+    from .agents import ProcessingAgent
+    agent = ProcessingAgent()
+    
+    # Set the flag for immediate UI feedback via update_button_states
+    shared_state_module.shared_state_instance.stop_requested_flag.set()
+    
+    # Send the message to the agent to initiate the stop sequence.
+    agent.send((UIMessage.STOP_QUEUE, None))
+    
+    gr.Info("Stop signal sent. The queue will halt after the current task is stopped.")
+    
+    # Return an update for the UI description to give immediate feedback.
+    return {
+        K.CURRENT_TASK_PROGRESS_DESCRIPTION: "Stop signal sent. Waiting for current task to halt..."
+    }
 
 def toggle_manual_preview_action(input_image_pil):
     """
@@ -190,8 +198,9 @@ def toggle_manual_preview_action(input_image_pil):
         # In addition to setting the flag for optimistic UI updates, we must
         # send a message to the agent's processing loop to trigger the action.
         from .agents import ProcessingAgent
+        from .enums import UIMessage
         agent = ProcessingAgent()
-        agent.send({"type": "request_preview"})
+        agent.send((UIMessage.REQUEST_PREVIEW, None))
         gr.Info("Preview generation requested.")
 
     # Return a dictionary of updates for all buttons.

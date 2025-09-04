@@ -70,14 +70,14 @@ class ProcessingAgent(threading.Thread):
     def run(self):
         """The agent's main loop, waiting for messages."""
         while True:
-            message = self.mailbox.get()
-            if message.get("type") == "start":
-                self._handle_start(message)
-            elif message.get("type") == "stop_queue":
+            flag, data = self.mailbox.get()
+            if flag == UIMessage.START:
+                self._handle_start(data)
+            elif flag == UIMessage.STOP_QUEUE:
                 self._handle_stop_queue()
-            elif message.get("type") == "cancel_task":
+            elif flag == UIMessage.CANCEL_TASK:
                 self._handle_cancel_task()
-            elif message.get("type") == "pause":
+            elif flag == UIMessage.PAUSE:
                 self._handle_pause()
 
 
@@ -134,15 +134,12 @@ class ProcessingAgent(threading.Thread):
 
             # The main processing loop. It will only terminate if a full stop is requested.
             while not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-                # If a full stop hasn't been requested, we can clear the single-task interrupt flag
-                # from a previous iteration. If a full stop IS requested, we must leave the
-                # interrupt flag set for the worker to see it and halt. This prevents a race
-                # condition where the flag is cleared before the worker can act on it.
-                if not shared_state_module.shared_state_instance.stop_requested_flag.is_set():
-                    shared_state_module.shared_state_instance.interrupt_flag.clear()
+                # Clear the single-task interrupt and pause flags at the start of each
+                # new task attempt. This is safe because the `while` condition above
+                # has already confirmed that a full stop is not requested.
+                shared_state_module.shared_state_instance.interrupt_flag.clear()
+                shared_state_module.shared_state_instance.pause_request_flag.clear()
 
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
-                    break
                 task = queue_manager_instance.get_and_start_next_task()
 
                 if task is None:  # No more pending tasks
@@ -173,9 +170,13 @@ class ProcessingAgent(threading.Thread):
                     ui_update_queue.put((flag, data))
 
                     if flag == UIMessage.END:
-                        _, success, final_path = data
-                        task_final_status = "done" if success else "error"
-                        final_output_path = final_path
+                        if isinstance(data, dict):
+                            success = data.get('success', False)
+                            final_output_path = data.get('final_path')
+                            task_final_status = "done" if success else "error"
+                        else: # Fallback for old tuple format, if any
+                            _, success, final_output_path = data
+                            task_final_status = "done" if success else "error"
                         break
                     elif flag == UIMessage.CRASH or flag == UIMessage.ERROR:
                         task_final_status = "error"
@@ -186,16 +187,20 @@ class ProcessingAgent(threading.Thread):
                         error_message = None
                         break
                     elif flag == UIMessage.PAUSED_WITH_STATE:
-                        task_id, history_latents, preview_path = data
-                        task_final_status = "paused"
-                        error_message = None
-                        final_output_path = preview_path # The preview generated before pausing
+                        if isinstance(data, dict):
+                            task_id = data.get('task_id')
+                            # history_latents = data.get('latents') # Latents are large, not forwarding to UI
+                            preview_path = data.get('preview_path')
+                            task_final_status = "paused"
+                            error_message = None
+                            final_output_path = preview_path # The preview generated before pausing
+                            logger.info(f"Task {task_id} paused with state. Preview: {preview_path}")
+                            break
+                        else:
+                            logger.warning(f"Received malformed PAUSED_WITH_STATE message: {data}")
 
-                        logger.info(f"Task {task_id} hypothetially paused with latent state. Saving resume file would happen here.")
-                        break
-
-                    elif flag == UIMessage.FILE:
-                        _, new_video_path, _ = data
+                    elif flag == UIMessage.FILE and isinstance(data, dict):
+                        new_video_path = data.get('path')
                         final_output_path = new_video_path
 
                 # If the task was aborted by the user, we want to reset its status to 'pending'
@@ -215,7 +220,10 @@ class ProcessingAgent(threading.Thread):
                 # to perform the correct UI cleanup (e.g., clearing progress bars).
                 ui_update_queue.put((UIMessage.TASK_FINISHED, {"id": task["id"], "status": task_final_status, "final_path": final_output_path}))
 
-                if shared_state_module.shared_state_instance.stop_requested_flag.is_set() or shared_state_module.shared_state_instance.interrupt_flag.is_set():
+                # After a task completes (or is aborted), check if a stop was requested
+                # during its execution. If so, break the loop immediately.
+                # A single-task cancellation (`interrupt_flag` only) will not break the loop.
+                if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
                     ui_update_queue.put((UIMessage.INFO, "Queue processing stopped by user."))
                     break
         finally:

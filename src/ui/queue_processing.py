@@ -26,37 +26,17 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
     """Starts the ProcessingAgent, listens for UI updates, and handles stop requests."""
     agent = ProcessingAgent()
 
-    # If processing is already active, this button click is a "stop" request.
-    if queue_manager_instance.get_state().get("processing", False):
-        # Set the flag for immediate UI feedback via update_button_states
-        shared_state_module.shared_state_instance.stop_requested_flag.set()
-        agent.send({"type": "stop_queue"})
-        gr.Info("Stop signal sent. The queue will halt after the current task is stopped.")
-        # This is a 'stop' request. We send the signal and then immediately exit
-        # this new generator instance. The *original* listener loop (from the
-        # 'start' click) is still running and will receive the final "queue_finished"
-        # signal from the agent to terminate properly. Starting a second listener
-        # loop here would cause conflicts.
-        # We yield an update to the UI description before exiting.
-        updates = {
-            K.CURRENT_TASK_PROGRESS_DESCRIPTION: "Stop signal sent. Waiting for current task to halt..."
-        }
-        yield create_update_tuple(updates)
-        return
-    else:
-        # If not processing, this is a "start" request.
-        # Clear all state flags at the beginning of a new run.
-        # This prevents a "stuck" stop or pause signal from a previous,
-        # potentially interrupted, run from immediately terminating the new one.
-        shared_state_module.shared_state_instance.interrupt_flag.clear()
-        shared_state_module.shared_state_instance.stop_requested_flag.clear()
-        shared_state_module.shared_state_instance.preview_request_flag.clear()
-        shared_state_module.shared_state_instance.pause_request_flag.clear()
-        logger.info("State flags cleared for new queue run.")
-        agent.send({
-            "type": "start",
-            "lora_controls": lora_control_values
-        })
+    # This function is now only for starting the queue. The stop logic is handled
+    # by a separate, dedicated event handler.
+    # Clear all state flags at the beginning of a new run.
+    shared_state_module.shared_state_instance.interrupt_flag.clear()
+    shared_state_module.shared_state_instance.stop_requested_flag.clear()
+    shared_state_module.shared_state_instance.preview_request_flag.clear()
+    shared_state_module.shared_state_instance.pause_request_flag.clear()
+    logger.info("State flags cleared for new queue run. Sending 'start' to agent.")
+    agent.send((UIMessage.START, {
+        "lora_controls": lora_control_values
+    }))
 
     # The listener loop. It doesn't manage state, just streams updates from the agent.
     while True:
@@ -139,13 +119,13 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
 
             elif flag == UIMessage.FILE:
                 # The 'file' message payload is a tuple: (task_id, path, message)
-                if not isinstance(data, tuple) or len(data) < 2:
+                if not isinstance(data, dict):
                     logger.warning(f"Received 'file' message with malformed data: {data}")
                     continue
 
-                new_video_path = data[1]
+                new_video_path = data.get('path')
                 if not new_video_path:
-                    logger.warning(f"Received 'file' message but could not extract a path from data: {data}")
+                    logger.warning(f"Received 'file' message but could not extract a path from data: {data!r}")
                     continue
 
                 app_state["last_completed_video_path"] = new_video_path

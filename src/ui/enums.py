@@ -19,6 +19,11 @@ class UIMessage(StrEnum):
     TASK_FINISHED = auto()
     QUEUE_FINISHED = auto()
     INFO = auto()
+    START = auto()
+    STOP_QUEUE = auto()
+    CANCEL_TASK = auto()
+    PAUSE = auto()
+    REQUEST_PREVIEW = auto()
 
     # --- Worker to Agent (and forwarded to UI Listener) ---
     PROGRESS = auto()
