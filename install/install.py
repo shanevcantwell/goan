@@ -10,7 +10,7 @@ import stat
 
 # --- Configuration Variables ---
 MIN_CUDA_VERSION_SUPPORTED_BY_SCRIPT = 121
-MAX_CUDA_VERSION_SUPPORTED_BY_SCRIPT = 128
+MAX_CUDA_VERSION_SUPPORTED_BY_SCRIPT = 130
 REQUIRED_TORCH_VERSION = "2.6.0"   # FramePack's minimum torch version
 REQUIRED_CUDA_FOR_FRAME_PACK = 126  # FramePack's specific CUDA version requirement
 MIN_PYTHON_VERSION_RECOMMENDED = (3, 10)  # Recommend Python 3.10 or newer

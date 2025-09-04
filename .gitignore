@@ -139,6 +139,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv_goan
 env/
 venv/
 ENV/
@@ -207,3 +208,5 @@ settings.json
 goan_settings.json
 node_modules/*
 package*.json
+
+client/
