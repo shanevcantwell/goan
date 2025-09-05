@@ -443,7 +443,7 @@ def worker(
         # If a full stop was requested, it's an abort. Otherwise, it's a pause.
         if shared_state_module.shared_state_instance.stop_requested_flag.is_set():
             logger.info(f"Worker task {task_id} caught stop signal: {e}.")
-            output_queue_ref.push(UIMessage.ABORTED, {'task_id': task_id})
+            output_queue_ref.push((UIMessage.ABORTED, {'task_id': task_id}))
         else:
             logger.info(f"Worker task {task_id} caught explicit pause signal: {e}. pause_request_flag was set.")
             output_queue_ref.push((UIMessage.PAUSED_WITH_STATE, {
@@ -467,6 +467,6 @@ def worker(
         # A paused task is handled by the ProcessingAgent and is not considered "ended".
         if not is_paused:
             output_queue_ref.push(UIMessage.END, {
-                'success': success,
+            output_queue_ref.push((UIMessage.END, {
                 'final_path': final_output_filename
-            })
+            }))
