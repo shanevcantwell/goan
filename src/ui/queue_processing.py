@@ -26,6 +26,11 @@ def process_task_queue_and_listen(app_state: dict, *lora_control_values):
     """Starts the ProcessingAgent, listens for UI updates, and handles stop requests."""
     agent = ProcessingAgent()
 
+    # Add a guard clause to prevent this from running if processing is already active.
+    # This is part of the "one-click start/stop" logic.
+    if queue_manager_instance.get_state().get("processing", False):
+        return create_update_tuple({}) # Return a no-op update tuple
+
     # This function is now only for starting the queue. The stop logic is handled
     # by a separate, dedicated event handler.
     # Clear all state flags at the beginning of a new run.

@@ -163,6 +163,14 @@ def handle_stop_queue_request():
     Handles the user request to stop the entire processing queue.
     This is a dedicated handler for the "Stop Processing" button click.
     """
+    # Add a guard clause to prevent this from running if not processing.
+    if not queue_manager_instance.get_state().get("processing", False):
+        # If not processing, this handler should do nothing. The start handler
+        # (`process_task_queue_and_listen`) is responsible for UI updates
+        # in this state. Returning an empty dict ensures we don't interfere
+        # with its updates.
+        return {}
+
     from .enums import UIMessage
     from .agents import ProcessingAgent
     agent = ProcessingAgent()
@@ -177,7 +185,7 @@ def handle_stop_queue_request():
     
     # Return an update for the UI description to give immediate feedback.
     return {
-        K.CURRENT_TASK_PROGRESS_DESCRIPTION: "Stop signal sent. Waiting for current task to halt..."
+        K.CURRENT_TASK_PROGRESS_DESCRIPTION: gr.update(value="Stop signal sent. Waiting for current task to halt...")
     }
 
 def toggle_manual_preview_action(input_image_pil):

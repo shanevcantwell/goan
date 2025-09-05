@@ -467,7 +467,6 @@ def worker(
         # A paused task is handled by the ProcessingAgent and is not considered "ended".
         if not is_paused:
             output_queue_ref.push(UIMessage.END, {
-                'task_id': task_id,
                 'success': success,
                 'final_path': final_output_filename
             })

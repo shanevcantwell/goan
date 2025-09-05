@@ -64,26 +64,23 @@ def wire_events(components: dict):
     ))
 
     # 2. Process Queue (Generator)
-    # This is a conditional event. It checks the queue's processing state.
-    # If not processing, it starts the queue. If processing, it stops it.
-    def process_or_stop(app_state, *lora_vals):
-        if not queue_manager_instance.get_state().get("processing", False):
-            # This is a START request. We need to trigger the generator.
-            # We return a special value to indicate this to the .then() block.
-            # The actual generator call happens in the .then() part.
-            return "start"
-        else:
-            # This is a STOP request. Call the dedicated stop handler.
-            return event_handlers.handle_stop_queue_request()
-
+    # This wiring handles both STARTING and STOPPING the queue.
+    # Gradio's event system doesn't have a clean if/else for a single button.
+    # The logic is as follows:
+    # - The first .click() always tries to START the queue by running the generator.
+    #   The generator will do nothing if processing is already active.
+    # - The second .click() always tries to STOP the queue. The handler inside
+    #   will do nothing if processing is not active.
+    # This ensures that a click on the button performs the correct action based on state.
     (components[K.PROCESS_QUEUE_BUTTON].click(
         fn=queue_processing.process_task_queue_and_listen,
         inputs=[components[K.APP_STATE]] + lora_ui_controls,
         outputs=process_q_outputs
-    ).then(
+    ))
+    (components[K.PROCESS_QUEUE_BUTTON].click( # This second click handles the STOP action
         fn=event_handlers.handle_stop_queue_request,
         inputs=None,
-        outputs=[components[K.CURRENT_TASK_PROGRESS_DESCRIPTION]]
+        outputs=[components[K.HANDLER_OUTPUT_STATE]],
     ))
     # 3. Create Manual Preview
     (components[K.CREATE_PREVIEW_BUTTON].click(

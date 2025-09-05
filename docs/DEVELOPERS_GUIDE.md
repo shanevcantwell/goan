@@ -42,19 +42,20 @@ The application can be understood as three main layers:
 
 ### Agent & Worker Communication
 
-Communication between the UI, the agent, and the worker is handled via message passing through queues and events.
+Communication between the UI, the agent, and the worker is handled via a standardized message passing format. All messages consist of a `(UIMessage, data)` tuple, where `UIMessage` is an enum member and `data` is a dictionary payload (or `None`).
 
 | Sender | Receiver | Message / Event | Purpose |
 | :--- | :--- | :--- | :--- |
-| **UI Listener** | `ProcessingAgent` | `{"type": "start"}` | Start processing the task queue. |
-| **UI Listener** | `ProcessingAgent` | `{"type": "stop_queue"}` | Request a hard stop of the entire queue. |
-| **UI Listener** | `ProcessingAgent` | `{"type": "cancel_task"}` | Request a soft stop of only the current task. |
-| **UI Listener** | `ProcessingAgent` | `{"type": "pause"}` | Request a graceful pause of the current task. |
-| **`worker`** | `ProcessingAgent` | `('progress', data)` | Send real-time progress updates (image, text, progress bar). |
-| **`worker`** | `ProcessingAgent` | `('file', data)` | Notify that a preview or final video file has been saved. |
-| **`worker`** | `ProcessingAgent` | `('end', data)` | Signal that the task has completed successfully. |
-| **`worker`** | `ProcessingAgent` | `('error', data)` | Signal that a fatal error occurred. |
-| **`worker`** | `ProcessingAgent` | `('paused_with_state', data)` | Signal a successful pause and provide resume data. |
+| **UI Listener** | `ProcessingAgent` | `(UIMessage.START, data)` | Start processing the task queue. `data` contains LoRA settings. |
+| **UI Handler** | `ProcessingAgent` | `(UIMessage.STOP_QUEUE, None)` | Request a hard stop of the entire queue. |
+| **UI Handler** | `ProcessingAgent` | `(UIMessage.CANCEL_TASK, None)` | Request a soft stop of only the current task. |
+| **UI Handler** | `ProcessingAgent` | `(UIMessage.PAUSE, None)` | Request a graceful pause of the current task. |
+| **UI Handler** | `ProcessingAgent` | `(UIMessage.REQUEST_PREVIEW, None)` | Request an on-demand preview from the worker. |
+| **`worker`** | `ProcessingAgent` | `(UIMessage.PROGRESS, data)` | Send real-time progress updates (image, text, progress bar). |
+| **`worker`** | `ProcessingAgent` | `(UIMessage.FILE, data)` | Notify that a preview or final video file has been saved. |
+| **`worker`** | `ProcessingAgent` | `(UIMessage.END, data)` | Signal that the task has completed successfully. |
+| **`worker`** | `ProcessingAgent` | `(UIMessage.ERROR, data)` | Signal that a fatal error occurred. |
+| **`worker`** | `ProcessingAgent` | `(UIMessage.PAUSED_WITH_STATE, data)` | Signal a successful pause and provide resume data. |
 | **`ProcessingAgent`** | **`worker`** | `interrupt_flag.set()` | Signal the worker to perform an immediate, hard stop. |
 | **`ProcessingAgent`** | **`worker`** | `pause_request_flag.set()` | Signal the worker to perform a graceful pause. |
 
@@ -62,11 +63,11 @@ Communication between the UI, the agent, and the worker is handled via message p
 
 ## 3. Key Process Flows (Summarized)
 
-*   **Starting a Task**: The user clicks "Process Queue". The UI listener (`queue_processing`) sends a "start" message to the `ProcessingAgent`. The agent launches the `worker` in a new thread. The worker pushes progress updates back to the agent, which forwards them to a global `ui_update_queue`. The UI listener consumes this queue and yields updates to Gradio.
+*   **Starting a Task**: The user clicks "Process Queue". The UI listener (`queue_processing`) sends a `(UIMessage.START, data)` message to the `ProcessingAgent`. The agent launches the `worker` in a new thread. The worker pushes progress updates back to the agent, which forwards them to a global `ui_update_queue`. The UI listener consumes this queue and yields updates to Gradio.
 
-*   **Stopping a Task**: The user clicks a stop button. A handler sends a "stop" or "cancel" message to the `ProcessingAgent`, which sets the `interrupt_flag`. The `worker` frequently checks this flag, raises an `InterruptedError` upon detection, and exits gracefully.
+*   **Stopping a Task**: The user clicks "Stop Processing". The `handle_stop_queue_request` handler sends a `(UIMessage.STOP_QUEUE, None)` message to the `ProcessingAgent`. The agent sets both the `stop_requested_flag` (to prevent new tasks) and the `interrupt_flag` (to stop the current task). The `worker` frequently checks the `interrupt_flag`, raises an `InterruptedError` upon detection, and exits gracefully.
 
-*   **Manual Preview**: The user clicks "Create Preview". A handler sets the `manual_preview_request_flag`. The `worker` checks this flag at the start of each segment, generates a preview if set, and then clears the flag.
+*   **Manual Preview**: The user clicks "Generate a preview...". The `toggle_manual_preview_action` handler sends a `(UIMessage.REQUEST_PREVIEW, None)` message to the `ProcessingAgent`. The agent then calls a method on the running `worker` thread, which sets a flag internal to the worker. The worker checks this internal flag at a safe point (e.g., before saving a segment), generates and saves a preview if the flag is set, and then clears the flag.
 
 ---
 

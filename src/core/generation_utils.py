@@ -41,14 +41,14 @@ def initialize_job(
     )
 
     job_id = f"{generate_timestamp()}_task{task_id}"
-    output_queue_ref.push(UIMessage.PROGRESS, {
+    output_queue_ref.push((UIMessage.PROGRESS, {
         "task_id": task_id,
         "preview_np": None,
         "description": f"Total Segments: {total_latent_sections}",
         "html": make_progress_bar_html(0, "Starting ..."),
         "current_segment": 0, # Ensure all keys are present
         "eta_display": ""     # Ensure all keys are present
-    })
+    }))
     return total_latent_sections, job_id
 
 def handle_segment_saving(
