@@ -1,4 +1,12 @@
 # **goan: A Power-User UI for FramePack**
+> [!WARNING]
+> **This Project is No Longer Maintained**
+>
+> Development on `goan` has been discontinued. The project's goals for a power-user UI have been impressively realized and surpassed by the excellent [**FramePack-Studio**](https://github.com/FP-Studio/FramePack-Studio).
+>
+> Thank you to everyone who showed interest in `goan`. The repository will remain available as an archive.
+
+---
 ![goan_ui_running_collapsed_including_mp4_preview](https://github.com/shanevcantwell/goan/blob/goan-development/docs/screenshots/05%20Preview%20generated.png?raw=true)
 (UI still being finalized, this is a WIP screenshot)
 > [!IMPORTANT]
