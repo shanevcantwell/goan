@@ -16,7 +16,7 @@ Thumbs.db
 # =============================================================================
 # Virtual Environment
 # Never commit the virtual environment itself.
-.venv/
+.venv*/
 venv/
 ENV/
 env/
